@@ -1,31 +1,17 @@
 <script lang="ts">
   export let onDrawerToggle: () => void;
-  import { privyClient } from '$lib/privy';
-
-  let isAuthenticated = false;
-
-  async function handleLogout() {
-    try {
-      await privyClient.auth.logout();
-      isAuthenticated = false;
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  }
 </script>
 
 <header>
   <div class="content">
     <div class="logo">NotAIry</div>
     <nav class="desktop-nav">
-      <!-- Add your navigation items here -->
+      <a href="#features">Features</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
     </nav>
     <div class="auth">
-      {#if isAuthenticated}
-        <button on:click={handleLogout}>Log Out</button>
-      {:else}
-        <button on:click={() => window.location.href = '/login'}>Log In</button>
-      {/if}
+      <button class="login-button">Sign Up</button>
     </div>
     <button class="menu" on:click={onDrawerToggle}>
       <span>Menu</span>
@@ -60,6 +46,18 @@
 
   .desktop-nav {
     display: none;
+    gap: 32px;
+  }
+
+  .desktop-nav a {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+    transition: opacity 0.2s;
+  }
+
+  .desktop-nav a:hover {
+    opacity: 0.8;
   }
 
   .auth button {
@@ -69,6 +67,12 @@
     padding: 8px 16px;
     border-radius: 20px;
     cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .auth button:hover {
+    background: white;
+    color: #161616;
   }
 
   .menu {
@@ -82,7 +86,6 @@
   @media (min-width: 768px) {
     .desktop-nav {
       display: flex;
-      gap: 32px;
     }
 
     .menu {

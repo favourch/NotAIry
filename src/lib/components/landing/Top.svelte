@@ -1,25 +1,32 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { privyClient } from '$lib/privy';
 
-  let isAuthenticated = false;
-
-  onMount(async () => {
-    try {
-      const user = await privyClient.user.get();
-      isAuthenticated = !!user;
-    } catch (error) {
-      console.error('Auth check failed:', error);
+  const exampleNotes = [
+    {
+      title: 'Ethereum Gas Optimization',
+      content: 'This contract uses optimized storage patterns to reduce gas costs by ~40%',
+      author: 'ethdev.eth',
+      votes: 128,
+      tags: ['ethereum', 'gas', 'optimization']
+    },
+    {
+      title: 'GPT-4 Prompt Analysis',
+      content: 'The model shows signs of emergent abilities when using chain-of-thought prompting',
+      author: 'airesearcher.eth',
+      votes: 89,
+      tags: ['ai', 'gpt4', 'prompting']
+    },
+    {
+      title: 'Smart Contract Security',
+      content: 'Potential reentrancy vulnerability in the withdraw function',
+      author: 'securityexpert.eth',
+      votes: 245,
+      tags: ['security', 'smart-contracts', 'audit']
     }
-  });
+  ];
 
   function handleGetStarted() {
-    if (isAuthenticated) {
-      goto('/dashboard');
-    } else {
-      goto('/login');
-    }
+    goto('#features');
   }
 </script>
 
@@ -44,7 +51,37 @@
       </div>
     </div>
     <div class="visual">
-      <!-- Add your hero image or animation here -->
+      <div class="card">
+        <div class="card-header">
+          <div class="header-content">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+        </div>
+        <div class="notes-preview">
+          {#each exampleNotes as note}
+            <div class="note-card">
+              <div class="note-header">
+                <h4>{note.title}</h4>
+                <div class="votes">
+                  <span class="arrow">↑</span>
+                  {note.votes}
+                </div>
+              </div>
+              <p class="note-content">{note.content}</p>
+              <div class="note-footer">
+                <span class="author">{note.author}</span>
+                <div class="tags">
+                  {#each note.tags as tag}
+                    <span class="tag">#{tag}</span>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -126,8 +163,127 @@
   .visual {
     position: relative;
     height: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .card {
+    width: 100%;
+    height: 100%;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 24px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+  }
+
+  .card-header {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .header-content {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .notes-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: calc(100% - 53px); /* Subtract header height */
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  .note-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .note-header h4 {
+    margin: 0;
+    font-size: 18px;
+    color: white;
+    font-weight: 600;
+  }
+
+  .votes {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #A5A5A5;
+    font-size: 14px;
+  }
+
+  .arrow {
+    color: #10B981;
+  }
+
+  .note-content {
+    color: #A5A5A5;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 16px;
+  }
+
+  .note-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .author {
+    color: #10B981;
+    font-size: 14px;
+  }
+
+  .tags {
+    display: flex;
+    gap: 8px;
+  }
+
+  .tag {
+    color: #A5A5A5;
+    font-size: 12px;
+  }
+
+  /* Add scrollbar styling */
+  .notes-preview::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .notes-preview::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  .notes-preview::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+
+  .notes-preview::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 
   @media (max-width: 1024px) {
@@ -146,7 +302,7 @@
     }
 
     .visual {
-      height: 400px;
+      height: 500px;
     }
   }
 

@@ -4,18 +4,45 @@ A decentralized, AI-powered community notes platform that helps verify Web3, DeF
 
 ## 🚀 Key Features
 
-- **AI-Powered Fact Checking**: Automated verification of Web3 claims and AI-generated content
+- **AI-Powered Fact Checking**: Automated verification using Amazon Bedrock's RAG and knowledge bases
 - **Community-Driven Notes & Voting**: Users submit and vote on annotations with crypto-backed staking
-- **Smart Contract Integration**: Onchain tracking of notes, votes, and reputation
-- **Web3 Identity & Secure Logins**: Simple authentication with email, social, or Web3 wallets
+- **Smart Contract Integration**: Onchain tracking of notes, votes, and reputation on Base L2
+- **Secure Agent Infrastructure**: Decentralized key management via Lit Protocol Agent Wallet
+- **Cross-Platform Presence**: Integration with Telegram, Discord via Gaia & Collab.Land
 
 ## 🛠 Tech Stack
 
+### Core Infrastructure
 - **Frontend**: SvelteKit
-- **Blockchain**: Base L2, Arbitrum, EigenLayer
-- **AI**: Amazon Bedrock
-- **Authentication**: Privy
-- **Database**: PostgreSQL
+- **Blockchain**: Base L2 (for low fees and Coinbase integration)
+- **AI/LLM**: Amazon Bedrock (for RAG and knowledge bases)
+- **Data Indexing**: The Graph (for efficient blockchain data querying)
+
+### Key Tools & SDKs
+- **Agent Framework**: Coinbase AgentKit (wallet management & onchain actions)
+- **Security**: Lit Protocol Agent Wallet (key management & permissions)
+- **Agent Deployment**: Gaia & Collab.Land (multi-platform deployment)
+- **Smart Contracts**: Base L2 (for scalable, low-cost transactions)
+- **Data Querying**: The Graph (custom subgraphs for note verification)
+
+## 🏗 Architecture
+
+```
+                                    ┌─────────────────┐
+                                    │  Amazon Bedrock │
+                                    │    (AI/LLM)     │
+                                    └────────┬────────┘
+                                            │
+┌─────────────┐    ┌──────────────┐    ┌───┴────┐    ┌─────────────┐
+│   SvelteKit │    │  AgentKit &  │    │NotAIry │    │ Lit Protocol│
+│  Frontend   ├────┤  Base L2     ├────┤ Core   ├────┤Agent Wallet │
+└─────────────┘    └──────────────┘    └───┬────┘    └─────────────┘
+                                           │
+                   ┌──────────────┐    ┌───┴────┐    ┌─────────────┐
+                   │    Gaia &    │    │  The   │    │ Community    │
+                   │  Collab.Land ├────┤ Graph  ├────┤ Interface    │
+                   └──────────────┘    └────────┘    └─────────────┘
+```
 
 ## 🏁 Getting Started
 

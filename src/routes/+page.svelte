@@ -1,79 +1,14 @@
 <script lang="ts">
-  import { EmailIcon } from '$lib/icons';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { privyClient } from '$lib/privy';
   import Drawer from '$lib/components/landing/Drawer.svelte';
   import Header from '$lib/components/landing/Header.svelte';
   import Top from '$lib/components/landing/Top.svelte';
+  import Functions from '$lib/components/landing/Functions.svelte';
 
   let isAuthenticated = false;
   let user: any = null;
-  let loading = false;
-  let email = '';
-  let verificationCode = '';
-  let showLoginForm = false;
-  let showVerificationForm = false;
   let isDrawerOpen = false;
-
-  onMount(async () => {
-    try {
-      const currentUser = await privyClient.user.get();
-      if (currentUser) {
-        isAuthenticated = true;
-        user = currentUser;
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-    }
-  });
-
-  async function handleLogin() {
-    if (!email) {
-      showLoginForm = true;
-      return;
-    }
-
-    loading = true;
-    try {
-      await privyClient.auth.email.sendCode(email);
-      showVerificationForm = true;
-    } catch (error) {
-      console.error('Login failed:', error);
-      alert(error instanceof Error ? error.message : 'Login failed');
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleVerification() {
-    if (!verificationCode) return;
-
-    loading = true;
-    try {
-      const { user: newUser } = await privyClient.auth.email.loginWithCode(email, verificationCode);
-      isAuthenticated = true;
-      user = newUser;
-      showLoginForm = false;
-      showVerificationForm = false;
-      goto('/dashboard');
-    } catch (error) {
-      console.error('Verification failed:', error);
-      alert(error instanceof Error ? error.message : 'Verification failed');
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleLogout() {
-    try {
-      await privyClient.auth.logout();
-      isAuthenticated = false;
-      user = null;
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  }
 
   function handleDrawerToggle() {
     isDrawerOpen = !isDrawerOpen;
@@ -88,10 +23,7 @@
   <Drawer isOpen={isDrawerOpen} onDrawerClose={handleDrawerToggle} />
   <Header onDrawerToggle={handleDrawerToggle} />
   <Top />
-
-  <section class="functions">
-    <!-- Functions content -->
-  </section>
+  <Functions />
 
   <section class="features">
     <!-- Features content -->

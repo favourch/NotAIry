@@ -1,5 +1,6 @@
-export const VerifyIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-9.618 5.04m-.01 5.032A11.955 11.955 0 0112 21.056a11.955 11.955 0 019.628-5.04m-9.628-5.032a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+export const VerifyIcon = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M14 21.5L9 16.5L10.5 15L14 18.5L21.5 11L23 12.5L14 21.5Z" fill="currentColor"/>
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M16 28C22.6274 28 28 22.6274 28 16C28 9.37258 22.6274 4 16 4C9.37258 4 4 9.37258 4 16C4 22.6274 9.37258 28 16 28ZM16 30C23.732 30 30 23.732 30 16C30 8.26801 23.732 2 16 2C8.26801 2 2 8.26801 2 16C2 23.732 8.26801 30 16 30Z" fill="currentColor"/>
 </svg>`;
 
 export const CommunityIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -23,6 +24,16 @@ export const KeyIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="no
   <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-export const EmailIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-  <path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+export const EmailIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`;
+
+export const NotesIcon = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M6 4C4.89543 4 4 4.89543 4 6V26C4 27.1046 4.89543 28 6 28H26C27.1046 28 28 27.1046 28 26V12L20 4H6ZM6 6H18V14H26V26H6V6ZM20 6L26 12H20V6Z" fill="currentColor"/>
+  <path d="M10 18H22V20H10V18Z" fill="currentColor"/>
+  <path d="M10 14H14V16H10V14Z" fill="currentColor"/>
+  <path d="M10 22H18V24H10V22Z" fill="currentColor"/>
+</svg>`;
+
+export const TrustIcon = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M16 4L6 8V16C6 22.6274 10.4726 27 16 28C21.5274 27 26 22.6274 26 16V8L16 4ZM24 9.15L16 5.85L8 9.15V16C8 21.5726 11.7726 25 16 26C20.2274 25 24 21.5726 24 16V9.15Z" fill="currentColor"/>
+  <path d="M14 15L12 17L16 21L22 15L20 13L16 17L14 15Z" fill="currentColor"/>
 </svg>`; 
