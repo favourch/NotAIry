@@ -1,6 +1,10 @@
-const GAIA_API_KEY = import.meta.env.GAIA_API_KEY;
-const CONSENSUS_API = 'https://consensus.gaia.domains/api';
-const CODER_API = 'https://coder.gaia.domains/api';
+export const getGaiaHeaders = () => ({
+  'Authorization': `Bearer ${import.meta.env.GAIA_API_KEY}`,
+  'Content-Type': 'application/json'
+});
+
+export const CONSENSUS_API = 'https://consensus.gaia.domains/api';
+export const CODER_API = 'https://coder.gaia.domains/api';
 
 interface GaiaAgent {
   id: string;

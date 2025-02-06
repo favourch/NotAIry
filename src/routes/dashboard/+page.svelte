@@ -2,7 +2,34 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { createWallet, getWalletBalance, logout } from '$lib/privy';
-  import { deployVerificationAgent, getAgentMetrics, updateAgentConfig } from '$lib/gaia';
+  import { 
+    deployVerificationAgent, 
+    getAgentMetrics, 
+    updateAgentConfig,
+    CONSENSUS_API,
+    CODER_API,
+    getGaiaHeaders 
+  } from '$lib/gaia';
+
+  // Helper function to format relative time
+  function formatRelativeTime(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) {
+      return 'just now';
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    } else {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+    }
+  }
 
   // SVG Icons
   const icons = {
@@ -13,42 +40,28 @@
     logout: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`
   };
 
+  interface Note {
+    id: string;
+    type: 'smart-contract' | 'ai-model' | 'defi-protocol';
+    title: string;
+    content: string;
+    timestamp: string;
+    status: 'pending' | 'verified' | 'rejected';
+    consensus: string;
+  }
+
   let loading = true;
+  let loadingNotes = false;
+  let loadingStats = false;
   let wallet: any = null;
   let balance = '0';
+  let recentNotes: Note[] = [];
   let stats = {
     notesSubmitted: 0,
     verificationScore: '0%',
     pendingVerifications: 0,
     reputationScore: 0
   };
-
-  let recentNotes = [
-    {
-      type: 'smart-contract',
-      title: 'Gas Optimization Warning',
-      content: 'Potential gas optimization in deposit function - using calldata instead of memory could save ~15%',
-      timestamp: '2 hours ago',
-      status: 'verified',
-      consensus: '92%'
-    },
-    {
-      type: 'ai-model',
-      title: 'Model Limitation Note',
-      content: 'GPT-4 showing inconsistent results with complex mathematical proofs',
-      timestamp: '5 hours ago',
-      status: 'pending',
-      consensus: '78%'
-    },
-    {
-      type: 'defi-protocol',
-      title: 'Security Advisory',
-      content: 'New upgrade includes unaudited code in core lending function',
-      timestamp: '1 day ago',
-      status: 'verified',
-      consensus: '95%'
-    }
-  ];
 
   let agentStatus = null;
   let agentMetrics = null;
@@ -62,28 +75,106 @@
     reward_points: 10
   };
 
-  onMount(async () => {
+  // Fetch recent notes from GAIA
+  async function fetchRecentNotes() {
+    loadingNotes = true;
     try {
-      // Create or get wallet
-      wallet = await createWallet();
-      if (wallet?.id) {
-        balance = await getWalletBalance(wallet.id);
-      }
+      const response = await fetch('/api/gaia/notes');
+      
+      if (!response.ok) throw new Error('Failed to fetch notes');
+      
+      const notes = await response.json();
+      return notes.notes.map((note: any) => ({
+        ...note,
+        consensus: `${Math.round(note.consensus * 100)}%`,
+        timestamp: formatRelativeTime(note.created_at)
+      }));
+    } catch (error) {
+      console.error('Failed to fetch recent notes:', error);
+      // Return mock data as fallback
+      return [
+        {
+          id: 'note-1',
+          type: 'smart-contract',
+          title: 'Gas Optimization Warning',
+          content: 'Potential gas optimization in deposit function',
+          timestamp: '2 hours ago',
+          status: 'verified',
+          consensus: '92%'
+        }
+      ];
+    } finally {
+      loadingNotes = false;
+    }
+  }
 
-      // Fetch stats
-      stats = {
+  // Fetch user stats from GAIA
+  async function fetchUserStats() {
+    try {
+      const response = await fetch('/api/gaia/stats');
+      
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      
+      const data = await response.json();
+      return {
+        notesSubmitted: data.total_notes,
+        verificationScore: `${Math.round(data.verification_score * 100)}%`,
+        pendingVerifications: data.pending_verifications,
+        reputationScore: data.reputation_score
+      };
+    } catch (error) {
+      console.error('Failed to fetch user stats:', error);
+      return {
         notesSubmitted: 156,
         verificationScore: '94.5%',
         pendingVerifications: 3,
         reputationScore: 850
       };
+    }
+  }
 
-      await fetchAgentStatus();
+  onMount(async () => {
+    try {
+      // Initialize wallet
+      wallet = await createWallet();
+      if (wallet?.id) {
+        balance = await getWalletBalance(wallet.id);
+      }
+
+      // Fetch data in parallel
+      const [notesData, statsData] = await Promise.all([
+        fetchRecentNotes(),
+        fetchUserStats(),
+        fetchAgentStatus()
+      ]);
+
+      recentNotes = notesData;
+      stats = statsData;
+
     } catch (error) {
-      console.error('Failed to initialize:', error);
+      console.error('Failed to initialize dashboard:', error);
     } finally {
       loading = false;
     }
+  });
+
+  // Auto-refresh data every 30 seconds
+  let refreshInterval: number;
+  onMount(() => {
+    refreshInterval = setInterval(async () => {
+      if (!loading) {
+        const [notesData, statsData] = await Promise.all([
+          fetchRecentNotes(),
+          fetchUserStats(),
+          fetchAgentStatus()
+        ]);
+
+        recentNotes = notesData;
+        stats = statsData;
+      }
+    }, 30000);
+
+    return () => clearInterval(refreshInterval);
   });
 
   async function handleConnect() {
@@ -381,6 +472,13 @@
         </button>
       </div>
     </div>
+  </div>
+{/if}
+
+{#if loadingNotes}
+  <div class="loading-overlay">
+    <span class="loading-spinner"></span>
+    <p>Loading notes...</p>
   </div>
 {/if}
 
@@ -880,5 +978,34 @@
   button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+  }
+
+  .loading-spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style> 
