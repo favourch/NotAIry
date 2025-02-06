@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { createWallet } from '$lib/privy';
 
   const exampleNotes = [
     {
@@ -25,8 +26,25 @@
     }
   ];
 
-  function handleGetStarted() {
-    goto('#features');
+  let isLoading = false;
+  let error = '';
+
+  async function handleGetStarted() {
+    if (isLoading) return;
+
+    try {
+      isLoading = true;
+      error = '';
+      const wallet = await createWallet();
+      if (wallet?.id) {
+        goto('/dashboard');
+      }
+    } catch (err) {
+      console.error('Failed to get started:', err);
+      error = 'Failed to create wallet. Please try again.';
+    } finally {
+      isLoading = false;
+    }
   }
 </script>
 
@@ -42,13 +60,20 @@
         Join a network of experts and enthusiasts building a more transparent digital ecosystem.
       </p>
       <div class="cta">
-        <button class="primary" on:click={handleGetStarted}>
-          Get Started
+        <button class="primary" on:click={handleGetStarted} disabled={isLoading}>
+          {#if isLoading}
+            <span class="loader"></span>
+          {:else}
+            Get Started
+          {/if}
         </button>
         <button class="secondary" on:click={() => goto('#features')}>
           Learn More
         </button>
       </div>
+      {#if error}
+        <p class="error">{error}</p>
+      {/if}
     </div>
     <div class="visual">
       <div class="card">
@@ -144,10 +169,13 @@
     background: white;
     color: black;
     border: none;
+    cursor: pointer;
+    transition: all 0.2s;
   }
 
   .primary:hover {
     background: #E5E5E5;
+    transform: translateY(-2px);
   }
 
   .secondary {
@@ -318,5 +346,37 @@
     button {
       padding: 14px 28px;
     }
+  }
+
+  .loader {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #161616;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .error {
+    color: #ef4444;
+    font-size: 14px;
+    margin-top: 16px;
+    text-align: center;
+  }
+
+  button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  button:disabled:hover {
+    transform: none;
   }
 </style> 

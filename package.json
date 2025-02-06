@@ -19,12 +19,5 @@
 		"svelte-check": "^4.0.0",
 		"typescript": "^5.0.0",
 		"vite": "^6.0.0"
-	},
-	"dependencies": {
-		"@privy-io/js-sdk-core": "^0.41.5",
-		"@privy-io/privy-browser": "^0.0.3",
-		"@wagmi/core": "^2.16.3",
-		"ethers": "^5.7.2",
-		"viem": "^2.22.21"
 	}
 }

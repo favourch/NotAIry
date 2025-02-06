@@ -5,6 +5,7 @@
   import Header from '$lib/components/landing/Header.svelte';
   import Top from '$lib/components/landing/Top.svelte';
   import Functions from '$lib/components/landing/Functions.svelte';
+  import { createWallet } from '$lib/privy';
 
   let isAuthenticated = false;
   let user: any = null;
@@ -12,6 +13,17 @@
 
   function handleDrawerToggle() {
     isDrawerOpen = !isDrawerOpen;
+  }
+
+  async function handleLogin() {
+    try {
+      const wallet = await createWallet();
+      if (wallet?.id) {
+        goto('/dashboard');
+      }
+    } catch (error) {
+      console.error('Failed to login:', error);
+    }
   }
 </script>
 
@@ -429,5 +441,38 @@
   .auth-button.secondary {
     background: white;
     color: #000;
+  }
+
+  .login-button {
+    background: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    border: 1px solid white;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .login-button:hover {
+    background: white;
+    color: #161616;
+  }
+
+  .cta-button {
+    background: white;
+    color: #161616;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    font-size: 1.125rem;
+    transition: all 0.2s;
+  }
+
+  .cta-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { createWallet, getWalletBalance } from '$lib/privy';
 
   // SVG Icons
   const icons = {
@@ -11,6 +12,8 @@
   };
 
   let loading = true;
+  let wallet: any = null;
+  let balance = '0';
   let stats = {
     notesSubmitted: 0,
     verificationScore: '0%',
@@ -47,7 +50,13 @@
 
   onMount(async () => {
     try {
-      // Simulate fetching user data and stats
+      // Create or get wallet
+      wallet = await createWallet();
+      if (wallet?.id) {
+        balance = await getWalletBalance(wallet.id);
+      }
+
+      // Fetch stats
       stats = {
         notesSubmitted: 156,
         verificationScore: '94.5%',
@@ -55,11 +64,22 @@
         reputationScore: 850
       };
     } catch (error) {
-      console.error('Failed to fetch data:', error);
+      console.error('Failed to initialize:', error);
     } finally {
       loading = false;
     }
   });
+
+  async function handleConnect() {
+    try {
+      wallet = await createWallet();
+      if (wallet?.id) {
+        balance = await getWalletBalance(wallet.id);
+      }
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  }
 </script>
 
 <svelte:head>
@@ -77,6 +97,13 @@
         <span class="page-title">Verification Dashboard</span>
       </div>
       <div class="right">
+        {#if !wallet}
+          <button class="connect-button" on:click={handleConnect}>
+            Connect Wallet
+          </button>
+        {:else}
+          <span class="balance">USDC {balance}</span>
+        {/if}
         <span class="reputation-score">
           {@html icons.trophy}
           <span>{stats.reputationScore} Rep</span>
@@ -213,6 +240,27 @@
     display: flex;
     align-items: center;
     gap: 1.5rem;
+  }
+
+  .connect-button {
+    background: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    border: 1px solid white;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .connect-button:hover {
+    background: white;
+    color: #161616;
+  }
+
+  .balance {
+    color: white;
+    font-weight: 600;
   }
 
   .reputation-score {

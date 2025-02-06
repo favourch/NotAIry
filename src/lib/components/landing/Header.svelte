@@ -1,5 +1,29 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { createWallet } from '$lib/privy';
+
   export let onDrawerToggle: () => void;
+
+  let isLoading = false;
+  let error = '';
+
+  async function handleLogin() {
+    if (isLoading) return;
+    
+    try {
+      isLoading = true;
+      error = '';
+      const wallet = await createWallet();
+      if (wallet?.id) {
+        goto('/dashboard');
+      }
+    } catch (err) {
+      console.error('Failed to login:', err);
+      error = 'Failed to login. Please try again.';
+    } finally {
+      isLoading = false;
+    }
+  }
 </script>
 
 <header>
@@ -11,7 +35,16 @@
       <a href="#contact">Contact</a>
     </nav>
     <div class="auth">
-      <button class="login-button">Sign Up</button>
+      <button class="login-button" on:click={handleLogin} disabled={isLoading}>
+        {#if isLoading}
+          <span class="loader"></span>
+        {:else}
+          Login
+        {/if}
+      </button>
+      {#if error}
+        <span class="error">{error}</span>
+      {/if}
     </div>
     <button class="menu" on:click={onDrawerToggle}>
       <span>Menu</span>
@@ -60,6 +93,10 @@
     opacity: 0.8;
   }
 
+  .auth {
+    position: relative;
+  }
+
   .auth button {
     background: none;
     border: 1px solid white;
@@ -68,11 +105,44 @@
     border-radius: 20px;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
   }
 
-  .auth button:hover {
+  .auth button:hover:not(:disabled) {
     background: white;
     color: #161616;
+  }
+
+  .auth button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .error {
+    position: absolute;
+    bottom: -24px;
+    right: 0;
+    color: #ef4444;
+    font-size: 12px;
+  }
+
+  .loader {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .menu {
