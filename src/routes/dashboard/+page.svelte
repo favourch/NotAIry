@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { createWallet, getWalletBalance } from '$lib/privy';
+  import { createWallet, getWalletBalance, logout } from '$lib/privy';
 
   // SVG Icons
   const icons = {
@@ -80,6 +80,17 @@
       console.error('Failed to connect wallet:', error);
     }
   }
+
+  async function handleLogout() {
+    try {
+      logout();
+      wallet = null;
+      balance = '0';
+      goto('/');
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    }
+  }
 </script>
 
 <svelte:head>
@@ -103,12 +114,15 @@
           </button>
         {:else}
           <span class="balance">USDC {balance}</span>
+          <span class="reputation-score">
+            {@html icons.trophy}
+            <span>{stats.reputationScore} Rep</span>
+          </span>
+          <a href="/submit" class="submit-button">+ New Note</a>
+          <button class="logout-button" on:click={handleLogout}>
+            Logout
+          </button>
         {/if}
-        <span class="reputation-score">
-          {@html icons.trophy}
-          <span>{stats.reputationScore} Rep</span>
-        </span>
-        <a href="/submit" class="submit-button">+ New Note</a>
         <a href="/" class="nav-link">Home</a>
       </div>
     </div>
@@ -290,6 +304,22 @@
 
   .submit-button:hover {
     background: white;
+    color: #161616;
+  }
+
+  .logout-button {
+    background: none;
+    color: #A5A5A5;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    border: 1px solid #A5A5A5;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .logout-button:hover {
+    background: #A5A5A5;
     color: #161616;
   }
 
