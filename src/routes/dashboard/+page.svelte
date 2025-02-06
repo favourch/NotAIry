@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { createWallet, getWalletBalance, logout } from '$lib/privy';
+  import { deployVerificationAgent, getAgentMetrics, updateAgentConfig } from '$lib/gaia';
 
   // SVG Icons
   const icons = {
@@ -49,6 +50,11 @@
     }
   ];
 
+  let agentStatus = null;
+  let agentMetrics = null;
+  let isDeploying = false;
+  let configuring = false;
+
   onMount(async () => {
     try {
       // Create or get wallet
@@ -64,6 +70,8 @@
         pendingVerifications: 3,
         reputationScore: 850
       };
+
+      await fetchAgentStatus();
     } catch (error) {
       console.error('Failed to initialize:', error);
     } finally {
@@ -90,6 +98,52 @@
       goto('/');
     } catch (error) {
       console.error('Failed to logout:', error);
+    }
+  }
+
+  async function handleDeployAgent() {
+    isDeploying = true;
+    try {
+      const agent = await deployVerificationAgent();
+      // Store agent ID in localStorage for future reference
+      localStorage.setItem('gaia_agent_id', agent.id);
+      await fetchAgentStatus();
+    } catch (error) {
+      console.error('Failed to deploy agent:', error);
+    } finally {
+      isDeploying = false;
+    }
+  }
+
+  async function fetchAgentStatus() {
+    const agentId = localStorage.getItem('gaia_agent_id');
+    if (!agentId) return;
+
+    try {
+      const data = await getAgentMetrics(agentId);
+      agentStatus = data.status;
+      agentMetrics = data.metrics;
+    } catch (error) {
+      console.error('Failed to fetch agent status:', error);
+    }
+  }
+
+  async function handleUpdateConfig() {
+    configuring = true;
+    const agentId = localStorage.getItem('gaia_agent_id');
+    if (!agentId) return;
+
+    try {
+      await updateAgentConfig(agentId, {
+        consensus_threshold: 0.75,
+        min_verifications: 3,
+        timeout_hours: 48
+      });
+      await fetchAgentStatus();
+    } catch (error) {
+      console.error('Failed to update config:', error);
+    } finally {
+      configuring = false;
     }
   }
 </script>
@@ -189,6 +243,60 @@
             </div>
           {/each}
         </div>
+      </div>
+
+      <div class="agent-section">
+        <h2>GAIA Agent Management</h2>
+        
+        {#if !agentStatus}
+          <div class="deploy-card">
+            <h3>Deploy Verification Agent</h3>
+            <p>Deploy a GAIA agent to manage note verifications and consensus.</p>
+            <button 
+              class="deploy-button" 
+              on:click={handleDeployAgent}
+              disabled={isDeploying}
+            >
+              {isDeploying ? 'Deploying...' : 'Deploy Agent'}
+            </button>
+          </div>
+        {:else}
+          <div class="agent-grid">
+            <div class="agent-card">
+              <h3>Agent Status</h3>
+              <div class="status-indicator" class:active={agentStatus.status === 'active'}>
+                {agentStatus.status}
+              </div>
+              <button 
+                class="config-button" 
+                on:click={handleUpdateConfig}
+                disabled={configuring}
+              >
+                Update Configuration
+              </button>
+            </div>
+
+            {#if agentMetrics}
+              <div class="metrics-card">
+                <h3>Agent Metrics</h3>
+                <div class="metrics-grid">
+                  <div class="metric">
+                    <span class="label">Verifications</span>
+                    <span class="value">{agentMetrics.total_verifications}</span>
+                  </div>
+                  <div class="metric">
+                    <span class="label">Consensus Rate</span>
+                    <span class="value">{agentMetrics.consensus_rate}%</span>
+                  </div>
+                  <div class="metric">
+                    <span class="label">Average Time</span>
+                    <span class="value">{agentMetrics.avg_verification_time}h</span>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
   </main>
@@ -502,6 +610,101 @@
     text-align: center;
     padding: 2rem;
     color: #A5A5A5;
+  }
+
+  .agent-section {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .deploy-card {
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .deploy-button {
+    background: white;
+    color: black;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .deploy-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .agent-card, .metrics-card {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+  }
+
+  .status-indicator {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    margin: 1rem 0;
+    text-transform: capitalize;
+  }
+
+  .status-indicator.active {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+  }
+
+  .config-button {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .config-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .metric {
+    text-align: center;
+  }
+
+  .metric .label {
+    display: block;
+    color: #A5A5A5;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .metric .value {
+    font-size: 1.25rem;
+    font-weight: 600;
   }
 
   @media (max-width: 768px) {
