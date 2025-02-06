@@ -54,6 +54,13 @@
   let agentMetrics = null;
   let isDeploying = false;
   let configuring = false;
+  let configModal = false;
+  let configSettings = {
+    consensus_threshold: 75,
+    min_verifications: 3,
+    timeout_hours: 48,
+    reward_points: 10
+  };
 
   onMount(async () => {
     try {
@@ -135,10 +142,12 @@
 
     try {
       await updateAgentConfig(agentId, {
-        consensus_threshold: 0.75,
-        min_verifications: 3,
-        timeout_hours: 48
+        consensus_threshold: configSettings.consensus_threshold / 100,
+        min_verifications: configSettings.min_verifications,
+        timeout_hours: configSettings.timeout_hours,
+        reward_points: configSettings.reward_points
       });
+      configModal = false;
       await fetchAgentStatus();
     } catch (error) {
       console.error('Failed to update config:', error);
@@ -269,7 +278,7 @@
               </div>
               <button 
                 class="config-button" 
-                on:click={handleUpdateConfig}
+                on:click={() => configModal = true}
                 disabled={configuring}
               >
                 Update Configuration
@@ -301,6 +310,79 @@
     {/if}
   </main>
 </div>
+
+{#if configModal}
+  <div class="modal">
+    <div class="modal-content">
+      <h3>Update Agent Configuration</h3>
+      
+      <div class="config-item">
+        <label>
+          Required Consensus
+          <span class="help-text">Percentage of verifiers that must agree</span>
+        </label>
+        <input 
+          type="range" 
+          bind:value={configSettings.consensus_threshold}
+          min="50"
+          max="100"
+          step="5"
+        />
+        <span class="value">{configSettings.consensus_threshold}%</span>
+      </div>
+
+      <div class="config-item">
+        <label>
+          Minimum Verifiers
+          <span class="help-text">Number of people needed to verify each note</span>
+        </label>
+        <input 
+          type="number" 
+          bind:value={configSettings.min_verifications}
+          min="2"
+          max="10"
+        />
+      </div>
+
+      <div class="config-item">
+        <label>
+          Verification Timeout
+          <span class="help-text">Maximum hours to wait for verification</span>
+        </label>
+        <input 
+          type="number" 
+          bind:value={configSettings.timeout_hours}
+          min="1"
+          max="72"
+        />
+      </div>
+
+      <div class="config-item">
+        <label>
+          Reward Points
+          <span class="help-text">Points awarded for successful verification</span>
+        </label>
+        <input 
+          type="number" 
+          bind:value={configSettings.reward_points}
+          min="1"
+          max="100"
+        />
+      </div>
+
+      <div class="modal-actions">
+        <button class="cancel" on:click={() => configModal = false}>Cancel</button>
+        <button 
+          class="save" 
+          on:click={handleUpdateConfig}
+          disabled={configuring}
+        >
+          {configuring ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   :global(body) {
@@ -719,5 +801,84 @@
     h1 {
       font-size: 1.5rem;
     }
+  }
+
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-content {
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    padding: 2rem;
+    width: 90%;
+    max-width: 500px;
+  }
+
+  .config-item {
+    margin-bottom: 1.5rem;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: white;
+  }
+
+  .help-text {
+    display: block;
+    font-size: 0.875rem;
+    color: #A5A5A5;
+    margin-top: 0.25rem;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.5rem;
+    color: white;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  button {
+    flex: 1;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .save {
+    background: white;
+    color: black;
+    border: none;
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style> 

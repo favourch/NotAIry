@@ -81,10 +81,16 @@ export async function getVerificationStatus(noteId: string, type: string) {
   };
 }
 
-// Update agent configuration for specific services
+// Configuration options for the verification agent
 export async function updateAgentConfig(agentId: string, config: Record<string, unknown>) {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
+  // Example configuration settings
+  const defaultConfig = {
+    consensus_threshold: 0.75,    // Need 75% agreement
+    min_verifications: 3,         // At least 3 people must verify
+    timeout_hours: 48,            // Max 48 hours to verify
+    reward_points: 10             // Points given for verification
+  };
+
   return {
     success: true,
     message: 'Configuration updated for Consensus and Coder services'
