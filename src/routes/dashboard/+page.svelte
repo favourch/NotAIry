@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { createWallet, getWalletBalance, logout } from '$lib/privy';
+  import Toast from '$lib/components/Toast.svelte';
+  import { supabase } from '$lib/supabase';
   import { 
     deployVerificationAgent, 
     getAgentMetrics, 
@@ -10,6 +12,15 @@
     CODER_API,
     getGaiaHeaders 
   } from '$lib/gaia';
+
+  let toast: { message: string; type: 'success' | 'error' | 'info' } | null = null;
+  
+  function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+    toast = { message, type };
+    setTimeout(() => {
+      toast = null;
+    }, 3000);
+  }
 
   // Helper function to format relative time
   function formatRelativeTime(dateString: string): string {
@@ -29,6 +40,15 @@
       const days = Math.floor(diffInSeconds / 86400);
       return `${days} ${days === 1 ? 'day' : 'days'} ago`;
     }
+  }
+
+  // Helper function to format timeout
+  function formatTimeout(hours: number): string {
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    
+    if (minutes === 0) return `${wholeHours}h`;
+    return `${wholeHours}h ${minutes}m`;
   }
 
   // SVG Icons
@@ -72,7 +92,10 @@
   let configSettings = {
     consensus_threshold: 75,
     min_verifications: 3,
-    timeout_hours: 48,
+    timeout: {
+      hours: 48,
+      minutes: 0
+    },
     reward_points: 10
   };
 
@@ -138,6 +161,29 @@
     }
   }
 
+  async function fetchAgentStatus() {
+    try {
+      // Check if agent config exists instead of using localStorage
+      const { data: config } = await supabase
+        .from('agent_config')
+        .select('*')
+        .single();
+ 
+      if (config) {
+        const data = await getAgentMetrics();
+        agentStatus = data.status;
+        agentMetrics = data.metrics;
+      } else {
+        agentStatus = null;
+        agentMetrics = null;
+      }
+    } catch (error) {
+      console.error('Failed to fetch agent status:', error);
+      agentStatus = null;
+      agentMetrics = null;
+    }
+  }
+
   onMount(async () => {
     try {
       wallet = await createWallet();
@@ -147,8 +193,8 @@
       }
 
       balance = await getWalletBalance(wallet.id);
-      // Initialize agent if not already initialized
-      await deployVerificationAgent();
+      // Check agent status on mount
+      await fetchAgentStatus();
       
       // Fetch initial data
       await Promise.all([
@@ -207,48 +253,74 @@
     isDeploying = true;
     try {
       const agent = await deployVerificationAgent();
-      // Store agent ID in localStorage for future reference
-      localStorage.setItem('gaia_agent_id', agent.id);
       await fetchAgentStatus();
+      showToast('Agent deployed successfully', 'success');
     } catch (error) {
       console.error('Failed to deploy agent:', error);
+      showToast('Failed to deploy agent', 'error');
     } finally {
       isDeploying = false;
     }
   }
 
-  async function fetchAgentStatus() {
-    const agentId = localStorage.getItem('gaia_agent_id');
-    if (!agentId) return;
-
+  async function handleConfigUpdate() {
     try {
-      const data = await getAgentMetrics(agentId);
-      agentStatus = data.status;
-      agentMetrics = data.metrics;
-    } catch (error) {
-      console.error('Failed to fetch agent status:', error);
-    }
-  }
-
-  async function handleUpdateConfig() {
-    configuring = true;
-    const agentId = localStorage.getItem('gaia_agent_id');
-    if (!agentId) return;
-
-    try {
-      await updateAgentConfig(agentId, {
-        consensus_threshold: configSettings.consensus_threshold / 100,
+      configuring = true;
+      // Convert hours and minutes to total hours
+      const totalHours = configSettings.timeout.hours + (configSettings.timeout.minutes / 60);
+      
+      await updateAgentConfig({
+        consensus_threshold: configSettings.consensus_threshold,
         min_verifications: configSettings.min_verifications,
-        timeout_hours: configSettings.timeout_hours,
+        timeout_hours: totalHours,
         reward_points: configSettings.reward_points
       });
+
+      showToast('Agent configuration updated successfully', 'success');
       configModal = false;
+      // Refresh agent status to show new config
       await fetchAgentStatus();
     } catch (error) {
       console.error('Failed to update config:', error);
+      showToast('Failed to update configuration', 'error');
     } finally {
       configuring = false;
     }
+  }
+
+  // Add function to load current config
+  async function loadAgentConfig() {
+    try {
+      const { data: config } = await supabase
+        .from('agent_config')
+        .select('*')
+        .single();
+
+      if (config) {
+        // Split timeout_hours into hours and minutes
+        const hours = Math.floor(config.timeout_hours);
+        const minutes = Math.round((config.timeout_hours - hours) * 60);
+        
+        configSettings = {
+          consensus_threshold: config.consensus_threshold,
+          min_verifications: config.min_verifications,
+          timeout: {
+            hours,
+            minutes
+          },
+          reward_points: config.reward_points
+        };
+      }
+    } catch (error) {
+      console.error('Failed to load agent config:', error);
+      showToast('Failed to load configuration', 'error');
+    }
+  }
+
+  // Update the config modal open handler
+  function openConfigModal() {
+    loadAgentConfig();
+    configModal = true;
   }
 </script>
 
@@ -386,7 +458,7 @@
               </div>
               <button 
                 class="config-button" 
-                on:click={() => configModal = true}
+                on:click={openConfigModal}
                 disabled={configuring}
               >
                 Update Configuration
@@ -452,17 +524,30 @@
         />
       </div>
 
-      <div class="config-item">
-        <label>
-          Verification Timeout
-          <span class="help-text">Maximum hours to wait for verification</span>
-        </label>
-        <input 
-          type="number" 
-          bind:value={configSettings.timeout_hours}
-          min="1"
-          max="72"
-        />
+      <div class="config-item timeout-input">
+        <label>Verification Timeout</label>
+        <div class="time-inputs">
+          <div class="time-input">
+            <input
+              type="number"
+              bind:value={configSettings.timeout.hours}
+              min="0"
+              max="168"
+            />
+            <span class="unit">hours</span>
+          </div>
+          <div class="time-input">
+            <input
+              type="number"
+              bind:value={configSettings.timeout.minutes}
+              min="0"
+              max="59"
+              step="5"
+            />
+            <span class="unit">minutes</span>
+          </div>
+        </div>
+        <span class="help-text">Maximum time to wait for verification</span>
       </div>
 
       <div class="config-item">
@@ -482,7 +567,7 @@
         <button class="cancel" on:click={() => configModal = false}>Cancel</button>
         <button 
           class="save" 
-          on:click={handleUpdateConfig}
+          on:click={handleConfigUpdate}
           disabled={configuring}
         >
           {configuring ? 'Saving...' : 'Save Changes'}
@@ -508,7 +593,7 @@
       </div>
       
       <div class="info-section">
-        <h4>Verification Timeout ({configSettings.timeout_hours}h)</h4>
+        <h4>Verification Timeout ({formatTimeout(configSettings.timeout.hours + configSettings.timeout.minutes/60)})</h4>
         <p>If a note doesn't receive enough verifications within this time period, it is automatically rejected to prevent stale notes.</p>
       </div>
       
@@ -529,6 +614,14 @@
     <span class="loading-spinner"></span>
     <p>Loading notes...</p>
   </div>
+{/if}
+
+{#if toast}
+  <Toast
+    message={toast.message}
+    type={toast.type}
+    onClose={() => toast = null}
+  />
 {/if}
 
 <style>
@@ -1100,5 +1193,28 @@
     margin: 0;
     line-height: 1.5;
     font-size: 0.9375rem;
+  }
+
+  .timeout-input .time-inputs {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .time-input {
+    flex: 1;
+    position: relative;
+  }
+
+  .time-input input {
+    padding-right: 4rem;
+  }
+
+  .time-input .unit {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #A5A5A5;
+    font-size: 0.875rem;
   }
 </style> 

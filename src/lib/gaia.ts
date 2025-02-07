@@ -190,6 +190,33 @@ export async function getAgentMetrics() {
     const avgVerificationTime = count > 0 ? totalTime / count : 0;
     const consensusRate = totalNotes > 0 ? (verifiedNotes / totalNotes) * 100 : 0;
 
+    // Calculate consensus for each note
+    const { data: notes } = await supabase
+      .from('notes')
+      .select(`
+        id,
+        verifications (
+          is_verified
+        )
+      `);
+
+    // Process each note to calculate consensus
+    for (const note of notes || []) {
+      const verifications = note.verifications || [];
+      const totalVerifications = verifications.length;
+      const positiveVerifications = verifications.filter(v => v.is_verified).length;
+      
+      // Update note with calculated consensus
+      if (totalVerifications > 0) {
+        await supabase
+          .from('notes')
+          .update({
+            consensus: Math.round((positiveVerifications / totalVerifications) * 100)
+          })
+          .eq('id', note.id);
+      }
+    }
+
     // Agent is active if we have valid config and can query the database
     return {
       status: {
@@ -231,6 +258,91 @@ export async function getAgentMetrics() {
         avg_verification_time: 0
       }
     };
+  }
+}
+
+// Function to calculate consensus for a single note
+async function calculateNoteConsensus(noteId: string): Promise<number> {
+  const { data: verifications } = await supabase
+    .from('verifications')
+    .select('is_verified')
+    .eq('note_id', noteId);
+
+  if (!verifications || verifications.length === 0) {
+    return 0;
+  }
+
+  const positiveVerifications = verifications.filter(v => v.is_verified).length;
+  return Math.round((positiveVerifications / verifications.length) * 100);
+}
+
+// Helper function to format relative time
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) {
+    return 'just now';
+  } else if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60);
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  } else if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600);
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  } else {
+    const days = Math.floor(diffInSeconds / 86400);
+    return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  }
+}
+
+// Update the notes endpoint to handle consensus calculation
+export async function fetchNotes() {
+  try {
+    const { data: notes, error } = await supabase
+      .from('notes')
+      .select(`
+        *,
+        verifications (
+          is_verified,
+          wallet_id
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Transform the data to match the frontend expectations
+    const transformedNotes = (notes || []).map((note) => {
+      // Calculate consensus
+      const verifications = note.verifications || [];
+      const totalVerifications = verifications.length;
+      const positiveVerifications = verifications.filter(v => v.is_verified).length;
+      
+      // Calculate consensus percentage
+      const consensusValue = totalVerifications > 0
+        ? Math.round((positiveVerifications / totalVerifications) * 100)
+        : 0;
+
+      return {
+        id: note.id,
+        type: note.type,
+        title: note.title,
+        content: note.content,
+        status: note.status,
+        source_url: note.source_url,
+        created_at: note.created_at,
+        wallet_id: note.wallet_id,
+        consensus: `${consensusValue}%`,
+        timestamp: formatRelativeTime(note.created_at),
+        verifications: verifications
+      };
+    });
+
+    return { notes: transformedNotes };
+  } catch (error) {
+    console.error('Failed to fetch notes:', error);
+    throw error;
   }
 }
 

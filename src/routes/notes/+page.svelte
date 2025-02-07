@@ -12,6 +12,20 @@
     coins: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path></svg>`
   };
 
+  interface Note {
+    id: string;
+    type: 'smart-contract' | 'ai-model' | 'defi-protocol';
+    title: string;
+    content: string;
+    timestamp: string;
+    status: 'pending' | 'verified' | 'rejected';
+    consensus: string;
+    verifications: Array<{
+      wallet_id: string;
+      is_verified: boolean;
+    }>;
+  }
+
   let loading = true;
   let notes = [];
   let wallet: any = null;
@@ -141,6 +155,16 @@
     }
   }
 
+  // Function to format consensus display
+  function formatConsensus(note: Note): string {
+    if (!note.verifications || note.verifications.length === 0) {
+      return '0%';
+    }
+    const totalVerifications = note.verifications.length;
+    const positiveVerifications = note.verifications.filter(v => v.is_verified).length;
+    return `${Math.round((positiveVerifications / totalVerifications) * 100)}%`;
+  }
+
   $: {
     if (!loading) {
       fetchNotes();
@@ -225,10 +249,9 @@
             {/if}
 
             <div class="note-footer">
-              <div class="consensus">
-                <span class="consensus-score" class:high={note.consensus > 90}>
-                  {note.consensus}% consensus
-                </span>
+              <div class="note-consensus">
+                <span class="label">Consensus</span>
+                <span class="value">{formatConsensus(note)}</span>
               </div>
               
               <div class="verification-actions">
@@ -481,16 +504,21 @@
     margin-top: auto;
   }
 
-  .consensus-score {
-    font-size: 0.875rem;
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
+  .note-consensus {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
-  .consensus-score.high {
-    background: rgba(255, 255, 255, 0.2);
+  .label {
+    font-size: 0.875rem;
+    color: #A5A5A5;
+  }
+
+  .value {
+    font-size: 0.875rem;
+    color: white;
+    font-weight: 600;
   }
 
   .verification-actions {
