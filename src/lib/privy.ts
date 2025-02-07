@@ -1,3 +1,111 @@
+import { PUBLIC_PRIVY_APP_ID } from '$env/static/public';
+
+interface PrivyUser {
+  id: string;
+  email?: string;
+  wallet?: {
+    address: string;
+  };
+}
+
+declare global {
+  interface Window {
+    PrivyLogin: any;
+  }
+}
+
+let privyLoadPromise: Promise<boolean> | null = null;
+
+async function loadPrivyWidget(): Promise<boolean> {
+  if (privyLoadPromise) return privyLoadPromise;
+
+  privyLoadPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://embedded.privy.io/widget.js';
+    script.async = true;
+    script.onload = () => {
+      // Initialize the widget once loaded
+      window.PrivyLogin?.init({
+        clientId: PUBLIC_PRIVY_APP_ID,
+        theme: {
+          colors: {
+            primary: '#a5b4fc',
+            background: '#161616',
+            text: '#ffffff'
+          }
+        }
+      });
+      resolve(true);
+    };
+    script.onerror = () => {
+      console.error('Failed to load Privy widget');
+      resolve(false);
+    };
+    document.head.appendChild(script);
+  });
+
+  return privyLoadPromise;
+}
+
+export async function initPrivy() {
+  try {
+    const isLoaded = await loadPrivyWidget();
+    if (!isLoaded) {
+      console.error('Privy widget failed to load');
+      return null;
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to initialize Privy:', error);
+    return null;
+  }
+}
+
+export async function login(): Promise<PrivyUser | null> {
+  try {
+    const isLoaded = await loadPrivyWidget();
+    if (!isLoaded) {
+      throw new Error('Privy widget not loaded');
+    }
+
+    return new Promise((resolve) => {
+      window.PrivyLogin.showLogin({
+        onComplete: (user: PrivyUser) => {
+          localStorage.setItem('userId', user.id);
+          resolve(user);
+        },
+        onError: (error: any) => {
+          console.error('Login error:', error);
+          resolve(null);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return null;
+  }
+}
+
+export async function logout(): Promise<void> {
+  try {
+    localStorage.removeItem('userId');
+    window.location.href = '/';
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
+}
+
+export async function getUser(userId: string): Promise<PrivyUser | null> {
+  const storedUserId = localStorage.getItem('userId');
+  if (storedUserId === userId) {
+    return {
+      id: userId,
+      email: localStorage.getItem('userEmail') || undefined
+    };
+  }
+  return null;
+}
+
 // Constants
 const PRIVY_API_BASE = 'https://api.privy.io/api/v1';
 const APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
@@ -18,77 +126,6 @@ const getBaseHeaders = () => {
 };
 
 // API wrapper functions
-export async function createWallet() {
-  try {
-    // First check if we have a stored wallet
-    try {
-      const storedWallet = localStorage.getItem('notairy_wallet');
-      if (storedWallet) {
-        const parsed = JSON.parse(storedWallet);
-        if (parsed && typeof parsed === 'object') {
-          return parsed;
-        }
-        // Invalid stored data, remove it
-        localStorage.removeItem('notairy_wallet');
-      }
-    } catch (e) {
-      console.warn('Failed to parse stored wallet:', e);
-      localStorage.removeItem('notairy_wallet');
-    }
-
-    // Test if server is reachable
-    console.log('Testing server connection...');
-    try {
-      const testResponse = await fetch('/api/test');
-      const testData = await testResponse.json();
-      console.log('Test response:', testData);
-    } catch (e) {
-      console.error('Server test failed:', e);
-      throw new Error('Could not connect to server');
-    }
-
-    console.log('Sending request to /api/wallet');
-    const response = await fetch('/api/wallet', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const text = await response.text();
-    console.log('Raw response:', text);
-
-    if (!text) {
-      throw new Error('Empty response from server');
-    }
-
-    let data;
-    try {
-      data = JSON.parse(text);
-      console.log('Parsed response:', data);
-    } catch (e) {
-      throw new Error(`Invalid JSON response: ${text}`);
-    }
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Server error');
-    }
-
-    if (!data.wallet) {
-      throw new Error('No wallet data in response');
-    }
-    
-    // Store wallet info
-    localStorage.setItem('notairy_wallet', JSON.stringify(data.wallet));
-    return data.wallet;
-  } catch (error) {
-    console.error('Failed to create wallet:', error);
-    throw error;
-  }
-}
-
-// Get wallet balance from Privy
 export async function getWalletBalance(wallet: any): Promise<string> {
   try {
     // Extract wallet ID or address
@@ -163,7 +200,66 @@ export async function verifyNote(walletId: string, noteId: string, verdict: bool
   }
 }
 
-// Add logout function
-export function logout() {
-  localStorage.removeItem('notairy_wallet');
+export async function createWallet(): Promise<PrivyUser | null> {
+  try {
+    const response = await fetch(`${PRIVY_API_BASE}/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PUBLIC_PRIVY_APP_ID}`
+      },
+      body: JSON.stringify({
+        create_wallet: true
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create wallet');
+    }
+
+    const data = await response.json();
+    return data.user;
+  } catch (error) {
+    console.error('Error creating wallet:', error);
+    return null;
+  }
+}
+
+export async function updateUser(userId: string, updates: Partial<PrivyUser>): Promise<PrivyUser | null> {
+  try {
+    const response = await fetch(`${PRIVY_API_BASE}/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PUBLIC_PRIVY_APP_ID}`
+      },
+      body: JSON.stringify(updates)
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update user');
+    }
+
+    const data = await response.json();
+    return data.user;
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return null;
+  }
+}
+
+export async function deleteUser(userId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${PRIVY_API_BASE}/users/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${PUBLIC_PRIVY_APP_ID}`
+      }
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return false;
+  }
 } 

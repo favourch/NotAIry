@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { createWallet, getWalletBalance, logout } from '$lib/privy';
+  import { createWallet } from '$lib/privy';
   import Toast from '$lib/components/Toast.svelte';
   import { supabase } from '$lib/supabase';
   import { 
@@ -22,7 +22,6 @@
     }, 3000);
   }
 
-  // Helper function to format relative time
   function formatRelativeTime(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
@@ -42,22 +41,14 @@
     }
   }
 
-  // Helper function to format timeout
-  function formatTimeout(hours: number): string {
-    const wholeHours = Math.floor(hours);
-    const minutes = Math.round((hours - wholeHours) * 60);
-    
-    if (minutes === 0) return `${wholeHours}h`;
-    return `${wholeHours}h ${minutes}m`;
-  }
-
-  // SVG Icons
   const icons = {
-    trophy: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>`,
-    bolt: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>`,
-    robot: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="16" r="2"></circle><path d="M12 7v4"></path><path d="M8 7h8"></path><path d="M12 3v4"></path></svg>`,
-    coins: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path></svg>`,
-    logout: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`
+    pen: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
+    heart: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`,
+    comment: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+    logout: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`,
+    profile: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    menu: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>`,
+    home: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`
   };
 
   interface Note {
@@ -74,7 +65,6 @@
   let loadingNotes = false;
   let loadingStats = false;
   let wallet: any = null;
-  let balance = '0';
   let recentNotes: Note[] = [];
   let stats = {
     notesSubmitted: 0,
@@ -99,1122 +89,738 @@
     reward_points: 10
   };
 
-  // Fetch recent notes from GAIA
+  let user: any = null;
+  let userInitials = '';
+  let showProfileMenu = false;
+
   async function fetchRecentNotes() {
     loadingNotes = true;
     try {
-      const response = await fetch('/api/gaia/notes');
-      
-      if (!response.ok) throw new Error('Failed to fetch notes');
-      
-      const notes = await response.json();
-      return notes.notes.map((note: any) => ({
-        ...note,
-        consensus: `${Math.round(note.consensus * 100)}%`,
-        timestamp: formatRelativeTime(note.created_at)
+      const { data: notes, error } = await supabase
+        .from('notes')
+        .select(`
+          id,
+          title,
+          content,
+          type,
+          status,
+          created_at,
+          consensus,
+          verifications (
+            id,
+            result
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      return notes.map((note: any) => ({
+        id: note.id,
+        title: note.title,
+        content: note.content,
+        type: note.type,
+        status: note.status,
+        timestamp: formatRelativeTime(note.created_at),
+        consensus: note.consensus || '0%'
       }));
-    } catch (error) {
-      console.error('Failed to fetch recent notes:', error);
-      // Return mock data as fallback
-      return [
-        {
-          id: 'note-1',
-          type: 'smart-contract',
-          title: 'Gas Optimization Warning',
-          content: 'Potential gas optimization in deposit function',
-          timestamp: '2 hours ago',
-          status: 'verified',
-          consensus: '92%'
-        }
-      ];
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+      showToast('Failed to load notes', 'error');
+      return [];
     } finally {
       loadingNotes = false;
     }
   }
 
-  // Fetch user stats from GAIA
   async function fetchUserStats() {
     try {
-      const response = await fetch('/api/gaia/stats', {
-        headers: {
-          'x-user-id': wallet.id
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch stats');
-      
-      const data = await response.json();
-      return {
-        notesSubmitted: data.total_notes,
-        verificationScore: `${Math.round(data.verification_score * 100)}%`,
-        pendingVerifications: data.pending_verifications,
-        reputationScore: data.reputation_score
-      };
-    } catch (error) {
-      console.error('Failed to fetch user stats:', error);
-      return {
-        notesSubmitted: 156,
-        verificationScore: '94.5%',
-        pendingVerifications: 3,
-        reputationScore: 850
-      };
-    }
-  }
-
-  async function fetchAgentStatus() {
-    try {
-      // Check if agent config exists instead of using localStorage
-      const { data: config } = await supabase
-        .from('agent_config')
+      const { data: userStats, error } = await supabase
+        .from('user_stats')
         .select('*')
         .single();
- 
-      if (config) {
-        const data = await getAgentMetrics();
-        agentStatus = data.status;
-        agentMetrics = data.metrics;
-      } else {
-        agentStatus = null;
-        agentMetrics = null;
-      }
-    } catch (error) {
-      console.error('Failed to fetch agent status:', error);
-      agentStatus = null;
-      agentMetrics = null;
+
+      if (error) throw error;
+
+      return {
+        notesSubmitted: userStats.notes_submitted || 0,
+        verificationScore: userStats.verification_score || '0%',
+        pendingVerifications: userStats.pending_verifications || 0,
+        reputationScore: userStats.reputation_score || 0
+      };
+    } catch (err) {
+      console.error('Failed to fetch user stats:', err);
+      return stats;
     }
   }
 
   onMount(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      goto('/');
+      return;
+    }
+
+    user = session.user;
+    // Get initials from email
+    userInitials = user.email
+      ?.split('@')[0]
+      .split('.')
+      .map((n: string) => n[0].toUpperCase())
+      .join('') || '?';
+
     try {
-      wallet = await createWallet();
-      if (!wallet) {
-        goto('/');
-        return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('wallet_address')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile?.wallet_address) {
+        wallet = { address: profile.wallet_address };
+      } else {
+        const newWallet = await createWallet();
+        if (newWallet?.id) {
+          await supabase
+            .from('profiles')
+            .update({ 
+              wallet_address: newWallet.id,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', session.user.id);
+          wallet = newWallet;
+        }
       }
 
-      balance = await getWalletBalance(wallet.id);
-      // Check agent status on mount
-      await fetchAgentStatus();
-      
-      // Fetch initial data
-      await Promise.all([
-        fetchUserStats(),
-        fetchRecentNotes()
-      ]);
-    } catch (error) {
-      console.error('Failed to initialize dashboard:', error);
+      recentNotes = await fetchRecentNotes();
+      stats = await fetchUserStats();
+    } catch (err) {
+      console.error('Error initializing dashboard:', err);
+      showToast('Failed to load dashboard data', 'error');
     } finally {
       loading = false;
     }
   });
 
-  // Auto-refresh data every 30 seconds
-  let refreshInterval: number;
-  onMount(() => {
-    refreshInterval = setInterval(async () => {
-      if (!loading) {
-        const [notesData, statsData] = await Promise.all([
-          fetchRecentNotes(),
-          fetchUserStats(),
-          fetchAgentStatus()
-        ]);
-
-        recentNotes = notesData;
-        stats = statsData;
-      }
-    }, 30000);
-
-    return () => clearInterval(refreshInterval);
-  });
-
-  async function handleConnect() {
+  async function handleSignOut() {
     try {
-      wallet = await createWallet();
-      if (wallet?.id) {
-        balance = await getWalletBalance(wallet.id);
-      }
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-    }
-  }
-
-  async function handleLogout() {
-    try {
-      logout();
-      wallet = null;
-      balance = '0';
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
       goto('/');
-    } catch (error) {
-      console.error('Failed to logout:', error);
+    } catch (err) {
+      console.error('Failed to sign out:', err);
+      showToast('Failed to sign out', 'error');
     }
   }
 
-  async function handleDeployAgent() {
-    isDeploying = true;
-    try {
-      const agent = await deployVerificationAgent();
-      await fetchAgentStatus();
-      showToast('Agent deployed successfully', 'success');
-    } catch (error) {
-      console.error('Failed to deploy agent:', error);
-      showToast('Failed to deploy agent', 'error');
-    } finally {
-      isDeploying = false;
-    }
-  }
-
-  async function handleConfigUpdate() {
-    try {
-      configuring = true;
-      // Convert hours and minutes to total hours
-      const totalHours = configSettings.timeout.hours + (configSettings.timeout.minutes / 60);
-      
-      await updateAgentConfig({
-        consensus_threshold: configSettings.consensus_threshold,
-        min_verifications: configSettings.min_verifications,
-        timeout_hours: totalHours,
-        reward_points: configSettings.reward_points
-      });
-
-      showToast('Agent configuration updated successfully', 'success');
-      configModal = false;
-      // Refresh agent status to show new config
-      await fetchAgentStatus();
-    } catch (error) {
-      console.error('Failed to update config:', error);
-      showToast('Failed to update configuration', 'error');
-    } finally {
-      configuring = false;
-    }
-  }
-
-  // Add function to load current config
-  async function loadAgentConfig() {
-    try {
-      const { data: config } = await supabase
-        .from('agent_config')
-        .select('*')
-        .single();
-
-      if (config) {
-        // Split timeout_hours into hours and minutes
-        const hours = Math.floor(config.timeout_hours);
-        const minutes = Math.round((config.timeout_hours - hours) * 60);
-        
-        configSettings = {
-          consensus_threshold: config.consensus_threshold,
-          min_verifications: config.min_verifications,
-          timeout: {
-            hours,
-            minutes
-          },
-          reward_points: config.reward_points
-        };
-      }
-    } catch (error) {
-      console.error('Failed to load agent config:', error);
-      showToast('Failed to load configuration', 'error');
-    }
-  }
-
-  // Update the config modal open handler
-  function openConfigModal() {
-    loadAgentConfig();
-    configModal = true;
+  async function fetchAgentStatus() {
+    // ... your existing code ...
   }
 </script>
 
-<svelte:head>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</svelte:head>
-
-<div class="dashboard">
-  <nav class="dashboard-nav">
-    <div class="nav-content">
-      <div class="left">
-        <div class="logo">NotAIry</div>
-        <span class="divider">/</span>
-        <span class="page-title">Verification Dashboard</span>
-      </div>
-      <div class="right">
-        {#if !wallet}
-          <button class="connect-button" on:click={handleConnect}>
-            Connect Wallet
-          </button>
-        {:else}
-          <span class="balance">USDC {balance}</span>
-          <span class="reputation-score">
-            {@html icons.trophy}
-            <span>{stats.reputationScore} Rep</span>
-          </span>
-          <a href="/submit" class="submit-button">+ New Note</a>
-          <button class="logout-button" on:click={handleLogout} title="Logout">
-            {@html icons.logout}
-          </button>
-        {/if}
-        <a href="/" class="nav-link">Home</a>
+<nav class="navbar">
+  <div class="nav-content">
+    <div class="nav-left">
+      <a href="/dashboard" class="logo">NotAIry</a>
+      <div class="nav-links">
+        <a href="/dashboard" class="nav-link active">
+          {@html icons.home}
+          Dashboard
+        </a>
+        <a href="/stories" class="nav-link">
+          {@html icons.pen}
+          Stories
+        </a>
       </div>
     </div>
-  </nav>
-
-  <main class="dashboard-content">
-    {#if loading}
-      <div class="loading">Loading your verification data...</div>
-    {:else}
-      <div class="welcome-section">
-        <h1>Verification Dashboard</h1>
-        <p class="subtitle">Track your contributions to Web3 & AI transparency</p>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-card">
-          <h3>Notes Submitted</h3>
-          <p class="stat-value">{stats.notesSubmitted}</p>
-        </div>
-        <div class="stat-card">
-          <h3>Verification Score</h3>
-          <p class="stat-value">{stats.verificationScore}</p>
-        </div>
-        <div class="stat-card">
-          <h3>Pending Verifications</h3>
-          <p class="stat-value">{stats.pendingVerifications}</p>
-        </div>
-        <div class="stat-card highlight">
-          <h3>Reputation Score</h3>
-          <p class="stat-value">{stats.reputationScore}</p>
-        </div>
-      </div>
-
-      <div class="recent-activity">
-        <h2>Recent Notes</h2>
-        <div class="activity-list">
-          {#each recentNotes as note}
-            <div class="activity-card">
-              <div class="activity-icon" class:verified={note.status === 'verified'}>
-                {#if note.type === 'smart-contract'}
-                  {@html icons.bolt}
-                {:else if note.type === 'ai-model'}
-                  {@html icons.robot}
-                {:else}
-                  {@html icons.coins}
-                {/if}
+    <div class="nav-right">
+      {#if user}
+        <div class="profile-menu" class:active={showProfileMenu}>
+          <button 
+            class="profile-button" 
+            on:click={() => showProfileMenu = !showProfileMenu}
+            title="Profile Menu"
+          >
+            <div class="user-avatar">
+              {userInitials}
+            </div>
+          </button>
+          {#if showProfileMenu}
+            <div class="dropdown-menu">
+              <div class="menu-header">
+                <span class="user-email">{user.email}</span>
+                <span class="wallet-label">Connected Wallet</span>
+                <span class="wallet-address">
+                  {wallet?.address ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : 'No wallet connected'}
+                </span>
               </div>
-              <div class="activity-details">
-                <div class="note-header">
-                  <h4>{note.title}</h4>
-                  <span class="consensus" class:high={Number(note.consensus?.replace('%', '') || 0) > 90}>
-                    {note.consensus} consensus
-                  </span>
-                </div>
-                <p>{note.content}</p>
-                <div class="note-footer">
-                  <span class="activity-time">{note.timestamp}</span>
-                  <span class="status" class:verified={note.status === 'verified'}>
-                    {note.status}
-                  </span>
-                </div>
+              <div class="menu-items">
+                <a href="/profile" class="menu-item">
+                  {@html icons.profile}
+                  Profile Settings
+                </a>
+                <button class="menu-item" on:click={handleSignOut}>
+                  {@html icons.logout}
+                  Sign Out
+                </button>
               </div>
             </div>
-          {/each}
+          {/if}
+        </div>
+      {/if}
+    </div>
+  </div>
+</nav>
+
+<div class="dashboard">
+  {#if toast}
+    <Toast message={toast.message} type={toast.type} />
+  {/if}
+
+  <header>
+    <div class="left">
+      <div class="header-content">
+        <h1>Dashboard</h1>
+        <p class="subtitle">Welcome back! Here's an overview of your startup's story.</p>
+      </div>
+      <div class="stats">
+        <div class="stat-card">
+          <h3>Stories Published</h3>
+          <p>{stats.notesSubmitted}</p>
+        </div>
+        <div class="stat-card">
+          <h3>Total Reads</h3>
+          <p>{stats.verificationScore}</p>
+        </div>
+        <div class="stat-card">
+          <h3>Community Score</h3>
+          <p>{stats.reputationScore}</p>
+        </div>
+        <div class="stat-card">
+          <h3>Pending Stories</h3>
+          <p>{stats.pendingVerifications}</p>
         </div>
       </div>
-
-      <div class="agent-section">
-        <div class="section-header">
-          <h2>GAIA Agent Management</h2>
-          <button 
-            class="info-button" 
-            on:click={() => showAgentInfo = true}
-            aria-label="Show agent information"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
+    </div>
+    <div class="right">
+      {#if wallet}
+        <div class="user-info">
+          <span class="wallet-address" title={wallet.address}>
+            {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+          </span>
+          <button class="logout-button" on:click={handleSignOut} title="Sign Out">
+            {@html icons.logout}
           </button>
         </div>
-        
-        {#if !agentStatus}
-          <div class="deploy-card">
-            <h3>Deploy Verification Agent</h3>
-            <p>Deploy a GAIA agent to manage note verifications and consensus.</p>
-            <button 
-              class="deploy-button" 
-              on:click={handleDeployAgent}
-              disabled={isDeploying}
-            >
-              {isDeploying ? 'Deploying...' : 'Deploy Agent'}
-            </button>
-          </div>
-        {:else}
-          <div class="agent-grid">
-            <div class="agent-card">
-              <h3>Agent Status</h3>
-              <div class="status-indicator" class:active={agentStatus.status === 'active'}>
-                {agentStatus.status}
-              </div>
-              <button 
-                class="config-button" 
-                on:click={openConfigModal}
-                disabled={configuring}
-              >
-                Update Configuration
-              </button>
-            </div>
+        <a href="/write" class="write-button">
+          {@html icons.pen}
+          Write Story
+        </a>
+      {:else}
+        <div class="connecting">
+          Connecting wallet...
+        </div>
+      {/if}
+    </div>
+  </header>
 
-            {#if agentMetrics}
-              <div class="metrics-card">
-                <h3>Agent Metrics</h3>
-                <div class="metrics-grid">
-                  <div class="metric">
-                    <span class="label">Verifications</span>
-                    <span class="value">{agentMetrics.total_verifications}</span>
-                  </div>
-                  <div class="metric">
-                    <span class="label">Consensus Rate</span>
-                    <span class="value">{agentMetrics.consensus_rate}%</span>
-                  </div>
-                  <div class="metric">
-                    <span class="label">Average Time</span>
-                    <span class="value">{agentMetrics.avg_verification_time}h</span>
-                  </div>
+  <main>
+    <section class="stories-section">
+      <div class="section-header">
+        <h2>Your Stories</h2>
+        <div class="view-options">
+          <button class="view-all">View All</button>
+        </div>
+      </div>
+      {#if loadingNotes}
+        <div class="loading">
+          <div class="loader"></div>
+          <span>Loading your stories...</span>
+        </div>
+      {:else if recentNotes.length === 0}
+        <div class="empty">
+          <div class="empty-content">
+            <h3>Start Your Story</h3>
+            <p>Document your startup's journey and inspire others in the community.</p>
+            <a href="/write" class="write-button">
+              {@html icons.pen}
+              Write Your First Story
+            </a>
+          </div>
+        </div>
+      {:else}
+        <div class="stories-grid">
+          {#each recentNotes as note}
+            <article class="story-card">
+              <div class="story-header">
+                <h3>{note.title}</h3>
+                <span class="status {note.status}">{note.status}</span>
+              </div>
+              <p class="preview">{note.content.slice(0, 200)}...</p>
+              <div class="meta">
+                <span class="timestamp">{note.timestamp}</span>
+                <div class="engagement">
+                  <span class="likes" title="Likes">
+                    {@html icons.heart} {Math.floor(Math.random() * 100)}
+                  </span>
+                  <span class="comments" title="Comments">
+                    {@html icons.comment} {Math.floor(Math.random() * 20)}
+                  </span>
                 </div>
               </div>
-            {/if}
-          </div>
-        {/if}
-      </div>
-    {/if}
+              <div class="tags">
+                {#each note.type.split('-') as tag}
+                  <span class="tag">{tag}</span>
+                {/each}
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
+    </section>
   </main>
 </div>
 
-{#if configModal}
-  <div class="modal">
-    <div class="modal-content">
-      <h3>Update Agent Configuration</h3>
-      
-      <div class="config-item">
-        <label>
-          Required Consensus
-          <span class="help-text">Percentage of verifiers that must agree</span>
-        </label>
-        <input 
-          type="range" 
-          bind:value={configSettings.consensus_threshold}
-          min="50"
-          max="100"
-          step="5"
-        />
-        <span class="value">{configSettings.consensus_threshold}%</span>
-      </div>
-
-      <div class="config-item">
-        <label>
-          Minimum Verifiers
-          <span class="help-text">Number of people needed to verify each note</span>
-        </label>
-        <input 
-          type="number" 
-          bind:value={configSettings.min_verifications}
-          min="2"
-          max="10"
-        />
-      </div>
-
-      <div class="config-item timeout-input">
-        <label>Verification Timeout</label>
-        <div class="time-inputs">
-          <div class="time-input">
-            <input
-              type="number"
-              bind:value={configSettings.timeout.hours}
-              min="0"
-              max="168"
-            />
-            <span class="unit">hours</span>
-          </div>
-          <div class="time-input">
-            <input
-              type="number"
-              bind:value={configSettings.timeout.minutes}
-              min="0"
-              max="59"
-              step="5"
-            />
-            <span class="unit">minutes</span>
-          </div>
-        </div>
-        <span class="help-text">Maximum time to wait for verification</span>
-      </div>
-
-      <div class="config-item">
-        <label>
-          Reward Points
-          <span class="help-text">Points awarded for successful verification</span>
-        </label>
-        <input 
-          type="number" 
-          bind:value={configSettings.reward_points}
-          min="1"
-          max="100"
-        />
-      </div>
-
-      <div class="modal-actions">
-        <button class="cancel" on:click={() => configModal = false}>Cancel</button>
-        <button 
-          class="save" 
-          on:click={handleConfigUpdate}
-          disabled={configuring}
-        >
-          {configuring ? 'Saving...' : 'Save Changes'}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
-
-{#if showAgentInfo}
-  <div class="modal">
-    <div class="modal-content info-modal">
-      <h3>How the Verification Agent Works</h3>
-      
-      <div class="info-section">
-        <h4>Required Consensus ({configSettings.consensus_threshold}%)</h4>
-        <p>For a note to be verified, this percentage of verifiers must agree. For example, if set to 75% and 4 people verify, at least 3 must agree.</p>
-      </div>
-      
-      <div class="info-section">
-        <h4>Minimum Verifiers ({configSettings.min_verifications})</h4>
-        <p>The minimum number of people that must verify a note before it can be approved or rejected. This ensures sufficient community input.</p>
-      </div>
-      
-      <div class="info-section">
-        <h4>Verification Timeout ({formatTimeout(configSettings.timeout.hours + configSettings.timeout.minutes/60)})</h4>
-        <p>If a note doesn't receive enough verifications within this time period, it is automatically rejected to prevent stale notes.</p>
-      </div>
-      
-      <div class="info-section">
-        <h4>Reward Points ({configSettings.reward_points})</h4>
-        <p>Points awarded to verifiers who agree with the final consensus. These points contribute to your reputation score.</p>
-      </div>
-
-      <div class="modal-actions">
-        <button class="save" on:click={() => showAgentInfo = false}>Got it</button>
-      </div>
-    </div>
-  </div>
-{/if}
-
-{#if loadingNotes}
-  <div class="loading-overlay">
-    <span class="loading-spinner"></span>
-    <p>Loading notes...</p>
-  </div>
-{/if}
-
-{#if toast}
-  <Toast
-    message={toast.message}
-    type={toast.type}
-    onClose={() => toast = null}
-  />
-{/if}
-
 <style>
+  /* Global styles match */
   :global(body) {
     background: #161616;
     margin: 0;
-    padding: 0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   .dashboard {
-    min-height: 100vh;
-    background: linear-gradient(180deg, #161616 0%, #1E1E1E 100%);
-    color: white;
-    letter-spacing: -0.02em;
-  }
-
-  .dashboard-nav {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: rgba(22, 22, 22, 0.8);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 1rem 2rem;
-    backdrop-filter: blur(10px);
-  }
-
-  .nav-content {
+    padding: 104px 40px 80px;
     max-width: 1400px;
     margin: 0 auto;
+    min-height: 100vh;
+  }
+
+  header {
+    margin-bottom: 60px;
+  }
+
+  .header-content {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-  }
-
-  .left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .logo {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: white;
-    letter-spacing: -0.03em;
-  }
-
-  .divider {
-    color: #A5A5A5;
-  }
-
-  .page-title {
-    font-size: 1rem;
-    color: #A5A5A5;
-  }
-
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-  }
-
-  .connect-button {
-    background: none;
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    border: 1px solid white;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .connect-button:hover {
-    background: white;
-    color: #161616;
-  }
-
-  .balance {
-    color: white;
-    font-weight: 600;
-  }
-
-  .reputation-score {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 1rem;
-    font-weight: 600;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    letter-spacing: -0.01em;
-  }
-
-  .submit-button {
-    background: none;
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    text-decoration: none;
-    font-weight: 600;
-    transition: all 0.2s;
-    border: 1px solid white;
-    letter-spacing: -0.01em;
-  }
-
-  .submit-button:hover {
-    background: white;
-    color: #161616;
-  }
-
-  .logout-button {
-    background: none;
-    color: #A5A5A5;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    border: 1px solid #A5A5A5;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-  }
-
-  .logout-button:hover {
-    background: #A5A5A5;
-    color: #161616;
-  }
-
-  .nav-link {
-    color: white;
-    text-decoration: none;
-    font-size: 0.9375rem;
-    opacity: 0.8;
-    transition: opacity 0.2s;
-  }
-
-  .nav-link:hover {
-    opacity: 1;
-  }
-
-  .dashboard-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-  }
-
-  .welcome-section {
-    margin-bottom: 2rem;
+    align-items: flex-start;
+    margin-bottom: 40px;
   }
 
   h1 {
-    font-size: 2rem;
+    font-size: 42px;
+    line-height: 1.2;
     font-weight: 700;
-    margin-bottom: 0.5rem;
+    margin: 0;
+    letter-spacing: -0.02em;
     background: linear-gradient(90deg, #FFFFFF 0%, #A5A5A5 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: -0.03em;
   }
 
   .subtitle {
+    font-size: 18px;
+    line-height: 1.5;
     color: #A5A5A5;
-    font-size: 1.125rem;
+    margin: 8px 0 0;
+    max-width: 480px;
   }
 
-  .stats-grid {
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .wallet-address {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 16px;
+    border-radius: 12px;
+    color: #A5A5A5;
+    font-size: 14px;
+    font-family: 'SF Mono', monospace;
+  }
+
+  .stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
   }
 
   .stat-card {
-    background: rgba(22, 22, 22, 0.8);
-    padding: 1.5rem;
-    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
+    padding: 24px;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+  }
+
+  .stat-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
   }
 
   .stat-card h3 {
     color: #A5A5A5;
-    font-size: 1rem;
+    font-size: 14px;
     font-weight: 500;
-    margin-bottom: 0.5rem;
-    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    letter-spacing: 0.02em;
   }
 
-  .stat-value {
-    font-size: 2rem;
+  .stat-card p {
+    font-size: 36px;
     font-weight: 700;
     margin: 0;
-    color: white;
-    letter-spacing: -0.03em;
-  }
-
-  .recent-activity {
-    background: rgba(22, 22, 22, 0.8);
-    padding: 1.5rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-  }
-
-  h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    color: white;
-    letter-spacing: -0.02em;
-  }
-
-  .activity-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .activity-card {
-    display: flex;
-    gap: 1rem;
-    padding: 1rem;
-    background: rgba(22, 22, 22, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0.5rem;
-    backdrop-filter: blur(10px);
-  }
-
-  .activity-icon {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.2s;
-  }
-
-  .activity-icon.verified {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.3);
-  }
-
-  .activity-details h4 {
-    margin: 0 0 0.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: white;
-    letter-spacing: -0.01em;
-  }
-
-  .activity-details p {
-    margin: 0 0 0.25rem;
-    color: #A5A5A5;
-    font-size: 0.9375rem;
-  }
-
-  .activity-time {
-    color: #A5A5A5;
-    font-size: 0.875rem;
-  }
-
-  .consensus {
-    font-size: 0.875rem;
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .consensus.high {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.3);
-  }
-
-  .status {
-    font-size: 0.875rem;
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .status.verified {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.3);
-  }
-
-  .highlight {
-    border: 2px solid rgba(255, 255, 255, 0.3);
-  }
-
-  .loading {
-    text-align: center;
-    padding: 2rem;
-    color: #A5A5A5;
-  }
-
-  .agent-section {
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 1rem;
-    padding: 1.5rem;
-    margin-top: 2rem;
-  }
-
-  .deploy-card {
-    text-align: center;
-    padding: 2rem;
-  }
-
-  .deploy-button {
-    background: white;
-    color: black;
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.5rem;
-    border: none;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .deploy-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .agent-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .agent-card, .metrics-card {
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-  }
-
-  .status-indicator {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    border-radius: 1rem;
-    background: rgba(255, 59, 48, 0.1);
-    color: #ff3b30;
-    margin: 1rem 0;
-    text-transform: capitalize;
-  }
-
-  .status-indicator.active {
-    background: rgba(52, 199, 89, 0.1);
-    color: #34c759;
-  }
-
-  .config-button {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .config-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-  }
-
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-
-  .metric {
-    text-align: center;
-  }
-
-  .metric .label {
-    display: block;
-    color: #A5A5A5;
-    font-size: 0.875rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .metric .value {
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-
-  @media (max-width: 768px) {
-    .dashboard-content {
-      padding: 1rem;
-    }
-
-    .stats-grid {
-      grid-template-columns: 1fr;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-    }
-  }
-
-  .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: #000;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 1rem;
-    padding: 2rem;
-    width: 90%;
-    max-width: 500px;
-  }
-
-  .config-item {
-    margin-bottom: 1.5rem;
-  }
-
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: white;
-  }
-
-  .help-text {
-    display: block;
-    font-size: 0.875rem;
-    color: #A5A5A5;
-    margin-top: 0.25rem;
-  }
-
-  input {
-    width: 100%;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 0.5rem;
-    color: white;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
-  }
-
-  button {
-    flex: 1;
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .cancel {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .save {
-    background: white;
-    color: black;
-    border: none;
-  }
-
-  button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 5;
-  }
-
-  .loading-spinner {
-    width: 2rem;
-    height: 2rem;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    background: linear-gradient(90deg, #FFFFFF 0%, #A5A5A5 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 32px;
   }
 
-  .info-button {
-    background: none;
-    border: none;
+  .view-all {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: #A5A5A5;
-    padding: 0.5rem;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
     cursor: pointer;
-    transition: color 0.2s;
+    transition: all 0.2s;
+  }
+
+  .view-all:hover {
+    border-color: #FFFFFF;
+    color: #FFFFFF;
+  }
+
+  .stories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 24px;
+  }
+
+  .story-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 24px;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+  }
+
+  .story-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+  }
+
+  .story-header h3 {
+    font-size: 24px;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 16px;
+  }
+
+  .preview {
+    color: #A5A5A5;
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0 0 24px;
+  }
+
+  .meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #A5A5A5;
+    font-size: 14px;
+  }
+
+  .engagement {
+    display: flex;
+    gap: 16px;
+  }
+
+  .tags {
+    display: flex;
+    gap: 8px;
+    margin-top: 24px;
+  }
+
+  .tag {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #A5A5A5;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    text-transform: capitalize;
+  }
+
+  .loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+  }
+
+  .loader {
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid #FFFFFF;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .empty {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+  }
+
+  .empty-content {
+    text-align: center;
+  }
+
+  .write-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    color: #161616;
+    padding: 16px 32px;
+    border-radius: 32px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+
+  .write-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .logout-button {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 32px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .logout-button:hover {
+    border-color: white;
+  }
+
+  @media (max-width: 1024px) {
+    h1 {
+      font-size: 48px;
+    }
+
+    .stories-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    h1 {
+      font-size: 36px;
+    }
+
+    .subtitle {
+      font-size: 18px;
+    }
+
+    .stats {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: rgba(22, 22, 22, 0.8);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 100;
+  }
+
+  .nav-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 40px;
+    height: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-left {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 48px;
   }
 
-  .info-button:hover {
+  .logo {
     color: white;
+    font-size: 20px;
+    font-weight: 600;
+    text-decoration: none;
+    letter-spacing: -0.02em;
   }
 
-  .info-modal {
-    max-width: 600px;
-  }
-
-  .info-section {
-    margin-bottom: 1.5rem;
-  }
-
-  .info-section h4 {
-    color: white;
-    margin: 0 0 0.5rem 0;
-    font-size: 1rem;
-  }
-
-  .info-section p {
-    color: #A5A5A5;
-    margin: 0;
-    line-height: 1.5;
-    font-size: 0.9375rem;
-  }
-
-  .timeout-input .time-inputs {
+  .nav-links {
     display: flex;
-    gap: 1rem;
+    gap: 24px;
   }
 
-  .time-input {
-    flex: 1;
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #A5A5A5;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .nav-link:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .nav-link.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .profile-menu {
     position: relative;
   }
 
-  .time-input input {
-    padding-right: 4rem;
+  .profile-button {
+    background: transparent;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    transition: transform 0.2s;
   }
 
-  .time-input .unit {
+  .profile-button:hover {
+    transform: scale(1.05);
+  }
+
+  .dropdown-menu {
     position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
+    top: calc(100% + 8px);
+    right: 0;
+    width: 280px;
+    background: rgba(32, 32, 32, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .menu-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .user-email {
+    display: block;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  .wallet-label {
+    display: block;
     color: #A5A5A5;
-    font-size: 0.875rem;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .wallet-address {
+    display: block;
+    color: #A5A5A5;
+    font-size: 13px;
+    font-family: 'SF Mono', monospace;
+  }
+
+  .menu-items {
+    padding: 8px;
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: none;
+    color: #A5A5A5;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .menu-item:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+  }
+
+  @media (max-width: 768px) {
+    .nav-links {
+      display: none;
+    }
+    
+    .nav-content {
+      padding: 0 20px;
+    }
   }
 </style> 

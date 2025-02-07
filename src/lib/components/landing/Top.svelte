@@ -1,5 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import { signInWithEmail, getSession } from '$lib/supabase';
   import { createWallet } from '$lib/privy';
 
   const exampleNotes = [
@@ -28,20 +30,33 @@
 
   let isLoading = false;
   let error = '';
+  let email = '';
+  let showVerification = false;
+
+  onMount(async () => {
+    const { session } = await getSession();
+    if (session) {
+      goto('/dashboard');
+    }
+  });
 
   async function handleGetStarted() {
-    if (isLoading) return;
+    if (isLoading || !email) return;
 
     try {
       isLoading = true;
       error = '';
-      const wallet = await createWallet();
-      if (wallet?.id) {
-        goto('/dashboard');
+
+      const { error: signInError } = await signInWithEmail(email);
+      
+      if (signInError) {
+        error = 'Failed to send verification email. Please try again.';
+      } else {
+        showVerification = true;
       }
     } catch (err) {
-      console.error('Failed to get started:', err);
-      error = 'Failed to create wallet. Please try again.';
+      console.error('Failed to start auth:', err);
+      error = 'Authentication failed. Please try again.';
     } finally {
       isLoading = false;
     }
@@ -59,17 +74,36 @@
         Immortalize your startup journey through decentralized storytelling.
         Join a community of founders, builders, and innovators documenting the future of technology.
       </p>
-      <div class="cta">
-        <button class="primary" on:click={handleGetStarted} disabled={isLoading}>
-          {#if isLoading}
-            <span class="loader"></span>
-          {:else}
-            Start Your Story
-          {/if}
-        </button>
-        <button class="secondary" on:click={() => goto('#features')}>
-          Learn More
-        </button>
+      <div class="auth-form">
+        {#if !showVerification}
+          <input
+            type="email"
+            bind:value={email}
+            placeholder="Enter your email"
+            class="email-input"
+          />
+          <button 
+            class="primary" 
+            on:click={handleGetStarted} 
+            disabled={isLoading || !email}
+          >
+            {#if isLoading}
+              <span class="loader"></span>
+            {:else}
+              Get Started
+            {/if}
+          </button>
+        {:else}
+          <div class="verification-message">
+            <p>Check your email for the login link!</p>
+            <button 
+              class="secondary"
+              on:click={() => showVerification = false}
+            >
+              Back
+            </button>
+          </div>
+        {/if}
       </div>
       {#if error}
         <p class="error">{error}</p>
@@ -378,5 +412,58 @@
 
   button:disabled:hover {
     transform: none;
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .email-input,
+  .code-input {
+    width: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-size: 1rem;
+  }
+
+  .email-input::placeholder,
+  .code-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .email-input:focus,
+  .code-input:focus {
+    outline: none;
+    border-color: #a5b4fc;
+  }
+
+  .error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    text-align: center;
+    margin-top: 0.5rem;
+  }
+
+  .verification-message {
+    text-align: center;
+    color: #a5b4fc;
+    padding: 1rem;
+  }
+
+  .secondary {
+    background: transparent;
+    border: 1px solid #a5b4fc;
+    color: #a5b4fc;
+  }
+
+  .secondary:hover {
+    background: rgba(165, 180, 252, 0.1);
   }
 </style> 

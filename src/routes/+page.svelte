@@ -36,17 +36,6 @@
   <Header onDrawerToggle={handleDrawerToggle} />
   <Top />
   <Functions />
-
-  <section class="you-can">
-    <div class="under">
-      <h2>Build Your Startup's Legacy</h2>
-      <p>Document milestones, share learnings, and inspire the next generation of founders</p>
-    </div>
-
-    <footer>
-      <p>© 2024 StoryDAO - Powered by Web3</p>
-    </footer>
-  </section>
 </div>
 
 <style>
