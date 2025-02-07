@@ -128,23 +128,26 @@ const getBaseHeaders = () => {
 // API wrapper functions
 export async function getWalletBalance(wallet: any): Promise<string> {
   try {
-    // Extract wallet ID or address
     const walletId = wallet?.id || wallet;
     if (!walletId) {
       throw new Error('No wallet ID provided');
     }
 
-    const response = await fetch(`/api/wallet/${walletId}/balance`);
+    const response = await fetch(`${PRIVY_API_BASE}/wallets/${walletId}/balance`, {
+      headers: getBaseHeaders()
+    });
     
     if (!response.ok) {
       throw new Error('Failed to get wallet balance');
     }
     
     const data = await response.json();
-    return data.balance;
+    // Convert from Wei to ETH and format to 4 decimal places
+    const balanceInEth = (parseInt(data.balance) / 1e18).toFixed(4);
+    return balanceInEth;
   } catch (error) {
     console.error('Failed to get balance:', error);
-    return '0';  // Return '0' as default balance on error
+    return '0.0000';  // Return '0.0000' as default balance on error
   }
 }
 

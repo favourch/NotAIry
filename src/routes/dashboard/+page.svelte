@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { createWallet } from '$lib/privy';
+  import { createWallet, getWalletBalance } from '$lib/privy';
   import Toast from '$lib/components/Toast.svelte';
   import { supabase } from '$lib/supabase';
   import { 
@@ -48,7 +48,7 @@
     logout: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`,
     profile: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
     menu: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>`,
-    home: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`
+    copy: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`
   };
 
   interface Note {
@@ -92,6 +92,8 @@
   let user: any = null;
   let userInitials = '';
   let showProfileMenu = false;
+
+  let walletBalance = '0.00';
 
   async function fetchRecentNotes() {
     loadingNotes = true;
@@ -169,6 +171,38 @@
     }
   }
 
+  async function fetchWalletBalance() {
+    if (!wallet?.address) return;
+    try {
+      const balance = await getWalletBalance(wallet);
+      walletBalance = balance;
+    } catch (err) {
+      console.error('Failed to fetch wallet balance:', err);
+      walletBalance = '0.00';
+    }
+  }
+
+  async function handleWalletCreation() {
+    try {
+      const newWallet = await createWallet();
+      if (newWallet?.id) {
+        await supabase
+          .from('profiles')
+          .update({ 
+            wallet_address: newWallet.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+        wallet = newWallet;
+        // Fetch balance after wallet creation
+        await fetchWalletBalance();
+      }
+    } catch (err) {
+      console.error('Failed to create wallet:', err);
+      showToast('Failed to create wallet', 'error');
+    }
+  }
+
   onMount(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -194,21 +228,15 @@
       if (profile?.wallet_address) {
         wallet = { address: profile.wallet_address };
       } else {
-        const newWallet = await createWallet();
-        if (newWallet?.id) {
-          await supabase
-            .from('profiles')
-            .update({ 
-              wallet_address: newWallet.id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', session.user.id);
-          wallet = newWallet;
-        }
+        await handleWalletCreation();
       }
 
       recentNotes = await fetchRecentNotes();
       stats = await fetchUserStats();
+
+      if (wallet?.address) {
+        await fetchWalletBalance();
+      }
     } catch (err) {
       console.error('Error initializing dashboard:', err);
       showToast('Failed to load dashboard data', 'error');
@@ -230,6 +258,17 @@
 
   async function fetchAgentStatus() {
     // ... your existing code ...
+  }
+
+  // Add function to copy wallet address
+  async function copyAddress(address: string) {
+    try {
+      await navigator.clipboard.writeText(address);
+      showToast('Address copied to clipboard', 'success');
+    } catch (err) {
+      console.error('Failed to copy address:', err);
+      showToast('Failed to copy address', 'error');
+    }
   }
 </script>
 
@@ -268,15 +307,31 @@
                   <span class="wallet-label">Privy Wallet</span>
                   {#if wallet}
                     <div class="wallet-info">
-                      <span class="wallet-status connected">Connected</span>
-                      <span class="wallet-address">
-                        {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-                      </span>
+                      <div class="wallet-details">
+                        <span class="wallet-status connected">Connected</span>
+                        <div class="balance">
+                          <span class="balance-label">Balance:</span>
+                          <span class="balance-amount">{walletBalance} ETH</span>
+                        </div>
+                      </div>
+                      <div class="address-container">
+                        <span class="wallet-address" title={wallet.address}>
+                          {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                        </span>
+                        <button 
+                          class="copy-button" 
+                          on:click={() => copyAddress(wallet.address)}
+                          title="Copy full address"
+                        >
+                          {@html icons.copy}
+                          <span class="tooltip">Copy full address</span>
+                        </button>
+                      </div>
                     </div>
                   {:else}
                     <div class="wallet-info">
                       <span class="wallet-status">Not Connected</span>
-                      <button class="connect-wallet" on:click={createWallet}>
+                      <button class="connect-wallet" on:click={handleWalletCreation}>
                         Connect Wallet
                       </button>
                     </div>
@@ -840,9 +895,9 @@
 
   .wallet-info {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 4px;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
   }
 
   .wallet-status {
@@ -885,5 +940,94 @@
     font-family: 'SF Mono', monospace;
     font-size: 12px;
     color: #A5A5A5;
+  }
+
+  .address-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .copy-button {
+    position: relative;
+    background: transparent;
+    border: none;
+    color: #A5A5A5;
+    padding: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+
+  .copy-button:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .copy-button:hover .tooltip {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.2s;
+  }
+
+  .tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 4px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+  }
+
+  .wallet-address {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    color: #A5A5A5;
+    cursor: default;
+  }
+
+  .wallet-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .balance {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .balance-label {
+    color: #A5A5A5;
+    font-size: 12px;
+  }
+
+  .balance-amount {
+    color: #10B981;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'SF Mono', monospace;
   }
 </style> 
