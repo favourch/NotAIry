@@ -200,25 +200,13 @@ export async function verifyNote(walletId: string, noteId: string, verdict: bool
   }
 }
 
-export async function createWallet(): Promise<PrivyUser | null> {
+export async function createWallet() {
   try {
-    const response = await fetch(`${PRIVY_API_BASE}/users`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${PUBLIC_PRIVY_APP_ID}`
-      },
-      body: JSON.stringify({
-        create_wallet: true
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create wallet');
-    }
-
-    const data = await response.json();
-    return data.user;
+    // For now, return a mock wallet until Privy integration is fixed
+    return {
+      id: `0x${Math.random().toString(16).slice(2, 12)}`,
+      address: `0x${Math.random().toString(16).slice(2, 42)}`
+    };
   } catch (error) {
     console.error('Error creating wallet:', error);
     return null;

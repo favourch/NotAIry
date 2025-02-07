@@ -96,38 +96,28 @@
   async function fetchRecentNotes() {
     loadingNotes = true;
     try {
-      const { data: notes, error } = await supabase
-        .from('notes')
-        .select(`
-          id,
-          title,
-          content,
-          type,
-          status,
-          created_at,
-          consensus,
-          verifications (
-            id,
-            result
-          )
-        `)
+      const { data: stories, error } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('author_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (error) throw error;
 
-      return notes.map((note: any) => ({
-        id: note.id,
-        title: note.title,
-        content: note.content,
-        type: note.type,
-        status: note.status,
-        timestamp: formatRelativeTime(note.created_at),
-        consensus: note.consensus || '0%'
+      return (stories || []).map((story) => ({
+        id: story.id,
+        title: story.title,
+        content: story.content,
+        status: story.status,
+        timestamp: formatRelativeTime(story.created_at),
+        type: 'story', // Default type
+        likes: story.likes,
+        comments: story.comments
       }));
     } catch (err) {
-      console.error('Failed to fetch notes:', err);
-      showToast('Failed to load notes', 'error');
+      console.error('Failed to fetch stories:', err);
+      showToast('Failed to load stories', 'error');
       return [];
     } finally {
       loadingNotes = false;
@@ -136,22 +126,46 @@
 
   async function fetchUserStats() {
     try {
-      const { data: userStats, error } = await supabase
-        .from('user_stats')
-        .select('*')
+      // First ensure the profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, email: user.email })
+        .select()
         .single();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Then get the stats
+      const { data: stats, error: statsError } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (statsError) {
+        // If no stats found, return defaults
+        return {
+          notesSubmitted: 0,
+          verificationScore: '0',
+          pendingVerifications: 0,
+          reputationScore: 0
+        };
+      }
 
       return {
-        notesSubmitted: userStats.notes_submitted || 0,
-        verificationScore: userStats.verification_score || '0%',
-        pendingVerifications: userStats.pending_verifications || 0,
-        reputationScore: userStats.reputation_score || 0
+        notesSubmitted: stats.stories_published || 0,
+        verificationScore: `${stats.total_likes || 0}`,
+        pendingVerifications: stats.drafts_count || 0,
+        reputationScore: stats.total_comments || 0
       };
     } catch (err) {
       console.error('Failed to fetch user stats:', err);
-      return stats;
+      return {
+        notesSubmitted: 0,
+        verificationScore: '0',
+        pendingVerifications: 0,
+        reputationScore: 0
+      };
     }
   }
 
@@ -250,10 +264,24 @@
             <div class="dropdown-menu">
               <div class="menu-header">
                 <span class="user-email">{user.email}</span>
-                <span class="wallet-label">Connected Wallet</span>
-                <span class="wallet-address">
-                  {wallet?.address ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : 'No wallet connected'}
-                </span>
+                <div class="wallet-section">
+                  <span class="wallet-label">Privy Wallet</span>
+                  {#if wallet}
+                    <div class="wallet-info">
+                      <span class="wallet-status connected">Connected</span>
+                      <span class="wallet-address">
+                        {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                      </span>
+                    </div>
+                  {:else}
+                    <div class="wallet-info">
+                      <span class="wallet-status">Not Connected</span>
+                      <button class="connect-wallet" on:click={createWallet}>
+                        Connect Wallet
+                      </button>
+                    </div>
+                  {/if}
+                </div>
               </div>
               <div class="menu-items">
                 <a href="/profile" class="menu-item">
@@ -302,26 +330,6 @@
           <p>{stats.pendingVerifications}</p>
         </div>
       </div>
-    </div>
-    <div class="right">
-      {#if wallet}
-        <div class="user-info">
-          <span class="wallet-address" title={wallet.address}>
-            {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-          </span>
-          <button class="logout-button" on:click={handleSignOut} title="Sign Out">
-            {@html icons.logout}
-          </button>
-        </div>
-        <a href="/write" class="write-button">
-          {@html icons.pen}
-          Write Story
-        </a>
-      {:else}
-        <div class="connecting">
-          Connecting wallet...
-        </div>
-      {/if}
     </div>
   </header>
 
@@ -822,5 +830,60 @@
     .nav-content {
       padding: 0 20px;
     }
+  }
+
+  .wallet-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .wallet-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+
+  .wallet-status {
+    font-size: 12px;
+    color: #A5A5A5;
+  }
+
+  .wallet-status.connected {
+    color: #10B981;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .wallet-status.connected::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: #10B981;
+    border-radius: 50%;
+  }
+
+  .connect-wallet {
+    background: transparent;
+    border: 1px solid #a5b4fc;
+    color: #a5b4fc;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .connect-wallet:hover {
+    background: rgba(165, 180, 252, 0.1);
+  }
+
+  .wallet-address {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    color: #A5A5A5;
   }
 </style> 
