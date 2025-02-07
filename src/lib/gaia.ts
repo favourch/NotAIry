@@ -465,4 +465,145 @@ export async function processNotes() {
         .eq('id', note.id);
     }
   }
+}
+
+// Update the note type definition
+export type NoteType = 'character' | 'plot' | 'setting' | 'event';
+
+export interface Note {
+  id: string;
+  type: NoteType;
+  title: string;
+  content: string;
+  story_arc?: string;
+  connected_to?: string;
+  sequence_number?: number;
+  status: 'pending' | 'verified' | 'rejected';
+  wallet_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Update the icons mapping
+export const noteTypeIcons = {
+  character: `<svg>...</svg>`, // Person icon
+  plot: `<svg>...</svg>`,      // Book icon
+  setting: `<svg>...</svg>`,   // Map icon
+  event: `<svg>...</svg>`      // Timeline icon
+};
+
+// Add story-specific functions
+export async function connectStoryElements(sourceId: string, targetId: string) {
+  const { error } = await supabase
+    .from('notes')
+    .update({ connected_to: targetId })
+    .eq('id', sourceId);
+    
+  if (error) throw error;
+}
+
+export async function updateStorySequence(noteId: string, sequence: number) {
+  const { error } = await supabase
+    .from('notes')
+    .update({ sequence_number: sequence })
+    .eq('id', noteId);
+    
+  if (error) throw error;
+}
+
+// Story element types
+export type StoryElementType = 'character' | 'plot' | 'setting' | 'event';
+
+// Story element interface
+export interface StoryElement {
+  id: string;
+  type: StoryElementType;
+  title: string;
+  content: string;
+  story_arc?: string;
+  connected_to?: string;
+  sequence_number?: number;
+  source_url?: string;
+  status: 'pending' | 'verified' | 'rejected';
+  wallet_id: string;
+  created_at: string;
+  updated_at: string;
+  verifications?: Verification[];
+}
+
+// Verification interface
+export interface Verification {
+  id: string;
+  note_id: string;
+  wallet_id: string;
+  is_verified: boolean;
+  created_at: string;
+}
+
+// Story element icons
+export const storyElementIcons = {
+  character: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+  plot: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
+  setting: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon></svg>`,
+  event: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="10"></circle></svg>`
+};
+
+// Fetch story elements
+export async function fetchStoryElements() {
+  try {
+    const { data: elements, error } = await supabase
+      .from('notes')
+      .select(`
+        *,
+        verifications (
+          id,
+          wallet_id,
+          is_verified,
+          created_at
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return { elements: elements || [] };
+  } catch (error) {
+    console.error('Failed to fetch story elements:', error);
+    throw error;
+  }
+}
+
+// Connect story elements
+export async function connectElements(sourceId: string, targetId: string) {
+  const { error } = await supabase
+    .from('notes')
+    .update({ connected_to: targetId })
+    .eq('id', sourceId);
+    
+  if (error) throw error;
+}
+
+// Update sequence number
+export async function updateSequence(elementId: string, sequence: number) {
+  const { error } = await supabase
+    .from('notes')
+    .update({ sequence_number: sequence })
+    .eq('id', elementId);
+    
+  if (error) throw error;
+}
+
+// Calculate consensus for an element
+export async function calculateConsensus(elementId: string): Promise<number> {
+  const { data: verifications } = await supabase
+    .from('verifications')
+    .select('is_verified')
+    .eq('note_id', elementId);
+
+  if (!verifications || verifications.length === 0) {
+    return 0;
+  }
+
+  const positiveVerifications = verifications.filter(v => v.is_verified).length;
+  return Math.round((positiveVerifications / verifications.length) * 100);
 } 
