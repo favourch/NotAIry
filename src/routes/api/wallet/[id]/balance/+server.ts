@@ -1,8 +1,13 @@
 import { json } from '@sveltejs/kit';
-import { VITE_PRIVY_APP_ID as PRIVY_APP_ID, VITE_PRIVY_APP_SECRET as PRIVY_APP_SECRET } from '$env/static/private';
+import { PRIVY_APP_ID, PRIVY_APP_SECRET } from '$env/static/private';
 import type { RequestEvent } from '@sveltejs/kit';
 
-export async function GET({ params }: RequestEvent) {
+export async function GET({ params, locals }: RequestEvent) {
+  const session = await locals.getSession();
+  if (!session) {
+    return json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const headers = {
       'Authorization': `Basic ${Buffer.from(`${PRIVY_APP_ID}:${PRIVY_APP_SECRET}`).toString('base64')}`,

@@ -21,13 +21,11 @@ declare global {
 	}
 
 	interface ImportMetaEnv {
-		VITE_PRIVY_APP_ID: string;
-		VITE_PRIVY_APP_SECRET: string;
-		VITE_PRIVY_CLIENT_ID: string;
-		VITE_SUPABASE_URL: string;
-		VITE_SUPABASE_ANON_KEY: string;
-		PRIVY_APP_ID: string;
-		PRIVY_APP_SECRET: string;
+		readonly VITE_PRIVY_APP_ID: string
+		readonly VITE_PRIVY_APP_SECRET: string
+		readonly VITE_PRIVY_CLIENT_ID: string
+		readonly VITE_SUPABASE_URL: string
+		readonly VITE_SUPABASE_ANON_KEY: string
 	}
 }
 

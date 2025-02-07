@@ -1,4 +1,4 @@
-import { VITE_PRIVY_APP_ID as PRIVY_APP_ID, VITE_PRIVY_APP_SECRET as PRIVY_APP_SECRET } from '$env/static/private';
+import { PRIVY_APP_ID, PRIVY_APP_SECRET } from '$env/static/private';
 
 export async function createPrivyWallet(request: Request) {
   const headers = {

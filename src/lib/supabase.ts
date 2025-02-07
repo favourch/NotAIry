@@ -1,20 +1,29 @@
 import { createClient } from '@supabase/supabase-js'
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public'
+import { browser } from '$app/environment'
 
 if (!PUBLIC_SUPABASE_URL) throw new Error('Missing PUBLIC_SUPABASE_URL')
 if (!PUBLIC_SUPABASE_ANON_KEY) throw new Error('Missing PUBLIC_SUPABASE_ANON_KEY')
 
 // Create a single instance
-const supabase = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-})
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
 
-// Export the single instance
-export { supabase }
+export function getSupabase() {
+  if (browser && !supabaseInstance) {
+    supabaseInstance = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'supabase.auth.token'
+      }
+    });
+  }
+  return supabaseInstance;
+}
+
+// Export the singleton instance
+export const supabase = getSupabase();
 
 export interface User {
   id: string

@@ -131,7 +131,13 @@
       // First ensure the profile exists
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .upsert({ id: user.id, email: user.email })
+        .upsert({ 
+          id: user.id, 
+          email: user.email,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        })
         .select()
         .single();
 
@@ -140,12 +146,12 @@
       // Then get the stats
       const { data: stats, error: statsError } = await supabase
         .from('user_stats')
-        .select('*')
+        .select('stories_published, total_likes, total_comments, drafts_count')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single
 
       if (statsError) {
-        // If no stats found, return defaults
+        console.error('Stats error:', statsError);
         return {
           notesSubmitted: 0,
           verificationScore: '0',
@@ -155,10 +161,10 @@
       }
 
       return {
-        notesSubmitted: stats.stories_published || 0,
-        verificationScore: `${stats.total_likes || 0}`,
-        pendingVerifications: stats.drafts_count || 0,
-        reputationScore: stats.total_comments || 0
+        notesSubmitted: stats?.stories_published || 0,
+        verificationScore: `${stats?.total_likes || 0}`,
+        pendingVerifications: stats?.drafts_count || 0,
+        reputationScore: stats?.total_comments || 0
       };
     } catch (err) {
       console.error('Failed to fetch user stats:', err);
@@ -182,27 +188,6 @@
     }
   }
 
-  async function handleWalletCreation() {
-    try {
-      const newWallet = await createWallet();
-      if (newWallet?.id) {
-        await supabase
-          .from('profiles')
-          .update({ 
-            wallet_address: newWallet.id,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id);
-        wallet = newWallet;
-        // Fetch balance after wallet creation
-        await fetchWalletBalance();
-      }
-    } catch (err) {
-      console.error('Failed to create wallet:', err);
-      showToast('Failed to create wallet', 'error');
-    }
-  }
-
   onMount(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -211,7 +196,6 @@
     }
 
     user = session.user;
-    // Get initials from email
     userInitials = user.email
       ?.split('@')[0]
       .split('.')
@@ -219,24 +203,25 @@
       .join('') || '?';
 
     try {
-      const { data: profile } = await supabase
+      // Get user profile with wallet
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('wallet_address')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single();
 
+      if (profileError) throw profileError;
+
       if (profile?.wallet_address) {
-        wallet = { address: profile.wallet_address };
-      } else {
-        await handleWalletCreation();
+        wallet = { 
+          address: profile.wallet_address,
+          network: 'Arbitrum Sepolia'
+        };
+        await fetchWalletBalance();
       }
 
       recentNotes = await fetchRecentNotes();
       stats = await fetchUserStats();
-
-      if (wallet?.address) {
-        await fetchWalletBalance();
-      }
     } catch (err) {
       console.error('Error initializing dashboard:', err);
       showToast('Failed to load dashboard data', 'error');
@@ -331,7 +316,7 @@
                           target="_blank"
                           rel="noopener noreferrer"
                           class="explorer-link"
-                          title="View on Explorer"
+                          aria-label="View wallet on block explorer"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>

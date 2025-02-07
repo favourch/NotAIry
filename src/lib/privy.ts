@@ -1,4 +1,5 @@
 import { PUBLIC_PRIVY_APP_ID } from '$env/static/public';
+import { supabase } from './supabase';
 
 interface PrivyUser {
   id: string;
@@ -108,20 +109,13 @@ export async function getUser(userId: string): Promise<PrivyUser | null> {
 
 // Constants
 const PRIVY_API_BASE = 'https://api.privy.io/api/v1';
-const APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
-const APP_SECRET = import.meta.env.VITE_PRIVY_APP_SECRET;
+const APP_ID = PUBLIC_PRIVY_APP_ID;
 
 // Basic headers required for all requests
 const getBaseHeaders = () => {
-  const auth = btoa(`${APP_ID}:${APP_SECRET}`);
   return {
-    'Authorization': `Basic ${auth}`,
     'privy-app-id': APP_ID,
-    'Content-Type': 'application/json',
-    'privy-client-id': import.meta.env.VITE_PRIVY_CLIENT_ID,
-    'Origin': window.location.origin,
-    'Access-Control-Request-Method': 'POST',
-    'Access-Control-Request-Headers': 'authorization, content-type, privy-app-id, privy-client-id'
+    'Content-Type': 'application/json'
   };
 };
 
@@ -147,12 +141,21 @@ const CURRENT_NETWORK = import.meta.env.DEV ? NETWORKS.ARBITRUM_SEPOLIA : NETWOR
 // API wrapper functions
 export async function getWalletBalance(wallet: any): Promise<string> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
     const walletId = wallet?.id || wallet;
     if (!walletId) {
       throw new Error('No wallet ID provided');
     }
 
-    const response = await fetch(`/api/wallet/${walletId}/balance`);
+    const response = await fetch(`/api/wallet/${walletId}/balance`, {
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`
+      }
+    });
     
     if (!response.ok) {
       throw new Error('Failed to get wallet balance');
@@ -221,26 +224,32 @@ export async function verifyNote(walletId: string, noteId: string, verdict: bool
 
 export async function createWallet() {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Not authenticated');
+    }
+
     const response = await fetch('/api/wallet', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
       }
     });
 
+    const data = await response.json();
     if (!response.ok) {
-      throw new Error('Failed to create wallet');
+      throw new Error(data.error || 'Failed to create wallet');
     }
 
-    const data = await response.json();
     return {
       id: data.address,
       address: data.address,
-      network: 'Arbitrum Sepolia'
+      network: data.network
     };
   } catch (error) {
     console.error('Error creating wallet:', error);
-    return null;
+    throw error;
   }
 }
 
