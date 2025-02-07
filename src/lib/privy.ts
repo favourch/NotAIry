@@ -125,6 +125,25 @@ const getBaseHeaders = () => {
   };
 };
 
+// Add network constants
+const NETWORKS = {
+  ARBITRUM_ONE: {
+    chainId: '0xa4b1', // 42161
+    name: 'Arbitrum One',
+    rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    explorer: 'https://arbiscan.io'
+  },
+  ARBITRUM_SEPOLIA: {
+    chainId: '0x66eee', // 421614
+    name: 'Arbitrum Sepolia',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+    explorer: 'https://sepolia.arbiscan.io'
+  }
+};
+
+// Use Arbitrum Sepolia for development, Arbitrum One for production
+const CURRENT_NETWORK = import.meta.env.DEV ? NETWORKS.ARBITRUM_SEPOLIA : NETWORKS.ARBITRUM_ONE;
+
 // API wrapper functions
 export async function getWalletBalance(wallet: any): Promise<string> {
   try {
@@ -133,21 +152,18 @@ export async function getWalletBalance(wallet: any): Promise<string> {
       throw new Error('No wallet ID provided');
     }
 
-    const response = await fetch(`${PRIVY_API_BASE}/wallets/${walletId}/balance`, {
-      headers: getBaseHeaders()
-    });
+    const response = await fetch(`/api/wallet/${walletId}/balance`);
     
     if (!response.ok) {
       throw new Error('Failed to get wallet balance');
     }
     
     const data = await response.json();
-    // Convert from Wei to ETH and format to 4 decimal places
     const balanceInEth = (parseInt(data.balance) / 1e18).toFixed(4);
     return balanceInEth;
   } catch (error) {
     console.error('Failed to get balance:', error);
-    return '0.0000';  // Return '0.0000' as default balance on error
+    return '0.0000';
   }
 }
 
@@ -205,10 +221,22 @@ export async function verifyNote(walletId: string, noteId: string, verdict: bool
 
 export async function createWallet() {
   try {
-    // For now, return a mock wallet until Privy integration is fixed
+    const response = await fetch('/api/wallet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create wallet');
+    }
+
+    const data = await response.json();
     return {
-      id: `0x${Math.random().toString(16).slice(2, 12)}`,
-      address: `0x${Math.random().toString(16).slice(2, 42)}`
+      id: data.address,
+      address: data.address,
+      network: 'Arbitrum Sepolia'
     };
   } catch (error) {
     console.error('Error creating wallet:', error);
@@ -251,6 +279,28 @@ export async function deleteUser(userId: string): Promise<boolean> {
     return response.ok;
   } catch (error) {
     console.error('Error deleting user:', error);
+    return false;
+  }
+}
+
+// Add network switching functionality
+export async function switchToArbitrum(wallet: any) {
+  try {
+    const response = await fetch(`${PRIVY_API_BASE}/wallets/${wallet.id}/chain`, {
+      method: 'PUT',
+      headers: getBaseHeaders(),
+      body: JSON.stringify({
+        chainId: CURRENT_NETWORK.chainId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to switch network');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to switch network:', error);
     return false;
   }
 } 

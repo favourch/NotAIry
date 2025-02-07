@@ -308,7 +308,7 @@
                   {#if wallet}
                     <div class="wallet-info">
                       <div class="wallet-details">
-                        <span class="wallet-status connected">Connected</span>
+                        <span class="wallet-status connected">Connected to {wallet.network}</span>
                         <div class="balance">
                           <span class="balance-label">Balance:</span>
                           <span class="balance-amount">{walletBalance} ETH</span>
@@ -326,6 +326,19 @@
                           {@html icons.copy}
                           <span class="tooltip">Copy full address</span>
                         </button>
+                        <a 
+                          href={`${CURRENT_NETWORK.explorer}/address/${wallet.address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="explorer-link"
+                          title="View on Explorer"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                          </svg>
+                        </a>
                       </div>
                     </div>
                   {:else}
@@ -1029,5 +1042,27 @@
     font-size: 14px;
     font-weight: 500;
     font-family: 'SF Mono', monospace;
+  }
+
+  .explorer-link {
+    color: #A5A5A5;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .explorer-link:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .wallet-status.connected {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 </style> 
