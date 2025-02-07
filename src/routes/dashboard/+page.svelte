@@ -68,6 +68,7 @@
   let isDeploying = false;
   let configuring = false;
   let configModal = false;
+  let showAgentInfo = false;
   let configSettings = {
     consensus_threshold: 75,
     min_verifications: 3,
@@ -111,7 +112,11 @@
   // Fetch user stats from GAIA
   async function fetchUserStats() {
     try {
-      const response = await fetch('/api/gaia/stats');
+      const response = await fetch('/api/gaia/stats', {
+        headers: {
+          'x-user-id': wallet.id
+        }
+      });
       
       if (!response.ok) throw new Error('Failed to fetch stats');
       
@@ -135,22 +140,21 @@
 
   onMount(async () => {
     try {
-      // Initialize wallet
       wallet = await createWallet();
-      if (wallet?.id) {
-        balance = await getWalletBalance(wallet.id);
+      if (!wallet) {
+        goto('/');
+        return;
       }
 
-      // Fetch data in parallel
-      const [notesData, statsData] = await Promise.all([
-        fetchRecentNotes(),
+      balance = await getWalletBalance(wallet.id);
+      // Initialize agent if not already initialized
+      await deployVerificationAgent();
+      
+      // Fetch initial data
+      await Promise.all([
         fetchUserStats(),
-        fetchAgentStatus()
+        fetchRecentNotes()
       ]);
-
-      recentNotes = notesData;
-      stats = statsData;
-
     } catch (error) {
       console.error('Failed to initialize dashboard:', error);
     } finally {
@@ -328,7 +332,7 @@
               <div class="activity-details">
                 <div class="note-header">
                   <h4>{note.title}</h4>
-                  <span class="consensus" class:high={parseInt(note.consensus) > 90}>
+                  <span class="consensus" class:high={Number(note.consensus?.replace('%', '') || 0) > 90}>
                     {note.consensus} consensus
                   </span>
                 </div>
@@ -346,7 +350,20 @@
       </div>
 
       <div class="agent-section">
-        <h2>GAIA Agent Management</h2>
+        <div class="section-header">
+          <h2>GAIA Agent Management</h2>
+          <button 
+            class="info-button" 
+            on:click={() => showAgentInfo = true}
+            aria-label="Show agent information"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </button>
+        </div>
         
         {#if !agentStatus}
           <div class="deploy-card">
@@ -470,6 +487,38 @@
         >
           {configuring ? 'Saving...' : 'Save Changes'}
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if showAgentInfo}
+  <div class="modal">
+    <div class="modal-content info-modal">
+      <h3>How the Verification Agent Works</h3>
+      
+      <div class="info-section">
+        <h4>Required Consensus ({configSettings.consensus_threshold}%)</h4>
+        <p>For a note to be verified, this percentage of verifiers must agree. For example, if set to 75% and 4 people verify, at least 3 must agree.</p>
+      </div>
+      
+      <div class="info-section">
+        <h4>Minimum Verifiers ({configSettings.min_verifications})</h4>
+        <p>The minimum number of people that must verify a note before it can be approved or rejected. This ensures sufficient community input.</p>
+      </div>
+      
+      <div class="info-section">
+        <h4>Verification Timeout ({configSettings.timeout_hours}h)</h4>
+        <p>If a note doesn't receive enough verifications within this time period, it is automatically rejected to prevent stale notes.</p>
+      </div>
+      
+      <div class="info-section">
+        <h4>Reward Points ({configSettings.reward_points})</h4>
+        <p>Points awarded to verifiers who agree with the final consensus. These points contribute to your reputation score.</p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="save" on:click={() => showAgentInfo = false}>Got it</button>
       </div>
     </div>
   </div>
@@ -1007,5 +1056,49 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .info-button {
+    background: none;
+    border: none;
+    color: #A5A5A5;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .info-button:hover {
+    color: white;
+  }
+
+  .info-modal {
+    max-width: 600px;
+  }
+
+  .info-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .info-section h4 {
+    color: white;
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+  }
+
+  .info-section p {
+    color: #A5A5A5;
+    margin: 0;
+    line-height: 1.5;
+    font-size: 0.9375rem;
   }
 </style> 

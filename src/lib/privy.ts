@@ -88,20 +88,26 @@ export async function createWallet() {
   }
 }
 
-export async function getWalletBalance(walletId: string) {
+// Get wallet balance from Privy
+export async function getWalletBalance(wallet: any): Promise<string> {
   try {
+    // Extract wallet ID or address
+    const walletId = wallet?.id || wallet;
+    if (!walletId) {
+      throw new Error('No wallet ID provided');
+    }
+
     const response = await fetch(`/api/wallet/${walletId}/balance`);
     
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Failed to get wallet balance');
+      throw new Error('Failed to get wallet balance');
     }
-
+    
     const data = await response.json();
     return data.balance;
   } catch (error) {
     console.error('Failed to get balance:', error);
-    throw error;
+    return '0';  // Return '0' as default balance on error
   }
 }
 
