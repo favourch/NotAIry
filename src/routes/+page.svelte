@@ -28,7 +28,7 @@
 </script>
 
 <svelte:head>
-  <title>NotAIry - Community Notes for Web3 & AI</title>
+  <title>StoryDAO - Onchain Storytelling for Startups</title>
 </svelte:head>
 
 <div class="wrapper">
@@ -37,17 +37,14 @@
   <Top />
   <Functions />
 
-  <section class="features">
-    <!-- Features content -->
-  </section>
-
   <section class="you-can">
     <div class="under">
-      <!-- Under content -->
+      <h2>Build Your Startup's Legacy</h2>
+      <p>Document milestones, share learnings, and inspire the next generation of founders</p>
     </div>
 
     <footer>
-      <!-- Footer content -->
+      <p>© 2024 StoryDAO - Powered by Web3</p>
     </footer>
   </section>
 </div>
@@ -117,32 +114,36 @@
   }
 
   .hero {
-    padding: 6rem 2rem;
+    padding: 8rem 2rem;
     text-align: center;
     max-width: 1200px;
     margin: 0 auto;
+    color: white;
   }
 
   h1 {
-    font-size: 5.5rem;
+    font-size: 4.5rem;
     line-height: 1.1;
     font-weight: 600;
     margin-bottom: 1.5rem;
+    background: linear-gradient(to right, #fff, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   .subtitle {
     font-size: 1.5rem;
-    color: #666;
-    margin-bottom: 0.5rem;
+    color: #a5b4fc;
+    margin-bottom: 1rem;
   }
 
   .offer {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+    color: #e5e7eb;
     margin-bottom: 2.5rem;
-  }
-
-  .offer span {
-    font-weight: 600;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .signup-box {

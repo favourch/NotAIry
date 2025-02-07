@@ -4,25 +4,25 @@
 
   const exampleNotes = [
     {
-      title: 'Ethereum Gas Optimization',
-      content: 'This contract uses optimized storage patterns to reduce gas costs by ~40%',
-      author: 'ethdev.eth',
+      title: 'Our Journey to Product Market Fit',
+      content: 'After 6 months of iterations, we discovered our core value proposition wasn\'t in the tech, but in the community we built.',
+      author: 'founder.eth',
       votes: 128,
-      tags: ['ethereum', 'gas', 'optimization']
+      tags: ['pmf', 'startup', 'journey']
     },
     {
-      title: 'GPT-4 Prompt Analysis',
-      content: 'The model shows signs of emergent abilities when using chain-of-thought prompting',
-      author: 'airesearcher.eth',
+      title: 'First 1000 Users Story',
+      content: 'How we leveraged Web3 communities and built in public to grow our initial user base organically.',
+      author: 'growth.eth',
       votes: 89,
-      tags: ['ai', 'gpt4', 'prompting']
+      tags: ['growth', 'community', 'web3']
     },
     {
-      title: 'Smart Contract Security',
-      content: 'Potential reentrancy vulnerability in the withdraw function',
-      author: 'securityexpert.eth',
+      title: 'Fundraising in Web3',
+      content: 'Key lessons from raising our seed round: focus on token economics and community incentives.',
+      author: 'startupfounder.eth',
       votes: 245,
-      tags: ['security', 'smart-contracts', 'audit']
+      tags: ['fundraising', 'tokenomics', 'dao']
     }
   ];
 
@@ -52,19 +52,19 @@
   <div class="content">
     <div class="text">
       <h1>
-        Community Notes<br />
-        for Web3 & AI
+        Share Your Startup<br />
+        Story On-Chain
       </h1>
       <p class="description">
-        Verify and annotate Web3 & AI content with community-driven insights.
-        Join a network of experts and enthusiasts building a more transparent digital ecosystem.
+        Immortalize your startup journey through decentralized storytelling.
+        Join a community of founders, builders, and innovators documenting the future of technology.
       </p>
       <div class="cta">
         <button class="primary" on:click={handleGetStarted} disabled={isLoading}>
           {#if isLoading}
             <span class="loader"></span>
           {:else}
-            Get Started
+            Start Your Story
           {/if}
         </button>
         <button class="secondary" on:click={() => goto('#features')}>
