@@ -105,7 +105,16 @@
       <header class="story-meta">
         <div class="meta-top">
           <div class="status-badge {story.status}">{story.status}</div>
-          <time class="timestamp">{formatDate(story.created_at)}</time>
+          <div class="meta-actions">
+            <time class="timestamp">{formatDate(story.created_at)}</time>
+            <a 
+              href="/stories/{story.id}/review" 
+              class="review-link"
+              title="View review details"
+            >
+              View Review
+            </a>
+          </div>
         </div>
         <h1>{story.title}</h1>
         <div class="meta">
@@ -510,5 +519,22 @@
     height: auto;
     border-radius: 6px;
     margin: 1em 0;
+  }
+
+  .meta-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .review-link {
+    color: #8B5CF6;
+    font-size: 14px;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .review-link:hover {
+    text-decoration: underline;
   }
 </style> 

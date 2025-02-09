@@ -704,30 +704,36 @@ export async function reviewStory(title: string, content: string, type: string) 
   }
 }
 
-const PORTRAIT_ENDPOINT = 'https://portrait.gaia.domains/v1';
+// Update the endpoint URL
+const PORTRAIT_ENDPOINT = 'https://portrait.gaia.domains/api';
 
 export async function generateImage(prompt: string) {
   try {
-    const response = await fetch(`${PORTRAIT_ENDPOINT}/images/generations`, {
+    const response = await fetch(`${PORTRAIT_ENDPOINT}/v1/generations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.GAIA_API_KEY || 'gaia-YTM3NzcxMTUtYmJiOC00ODdhLWFiOGQtODg2NTc1MmNlMzdm-VGxeqQRzepKOSSqF'}`
+        'Authorization': `Bearer ${GAIA_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'portrait',
         prompt,
         n: 1,
         size: '512x512',
-        response_format: 'url'
+        model: 'portrait-v1'
       })
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate image');
+      const error = await response.text();
+      console.error('Image generation error:', error);
+      throw new Error('Failed to generate image. Please try again.');
     }
+
     const data = await response.json();
+    if (!data.data?.[0]?.url) {
+      throw new Error('Invalid response format from image generation API');
+    }
+
     return data.data[0].url;
   } catch (err) {
     console.error('Failed to generate image:', err);
@@ -776,7 +782,8 @@ export async function autoReviewStory(storyId: string): Promise<AIReviewResult> 
                      2. Content quality and clarity (0-100)
                      3. Reader engagement (0-100)
                      
-                     Provide your review in JSON format with the following structure:
+                     Return only a JSON object with no markdown formatting or code blocks.
+                     The JSON should have this exact structure:
                      {
                        "technicalAccuracy": number,
                        "contentQuality": number,
@@ -785,9 +792,10 @@ export async function autoReviewStory(storyId: string): Promise<AIReviewResult> 
                        "recommendation": "publish" | "reject" | "revise"
                      }
                      
-                     Recommend "publish" if average score > 80
-                     Recommend "revise" if average score 60-80
-                     Recommend "reject" if average score < 60`
+                     Use these rules for recommendation:
+                     - "publish" if average score > 80
+                     - "revise" if average score 60-80
+                     - "reject" if average score < 60`
           },
           {
             role: 'user',
@@ -805,7 +813,11 @@ export async function autoReviewStory(storyId: string): Promise<AIReviewResult> 
     }
 
     const data = await response.json();
-    const review = JSON.parse(data.choices[0].message.content);
+    let reviewContent = data.choices[0].message.content;
+    
+    // Clean up the response if it contains markdown or code blocks
+    reviewContent = reviewContent.replace(/```json\n?|\n?```/g, '').trim();
+    const review = JSON.parse(reviewContent);
 
     // Calculate overall score
     const overallScore = (review.technicalAccuracy + review.contentQuality + review.engagement) / 3;
@@ -821,6 +833,9 @@ export async function autoReviewStory(storyId: string): Promise<AIReviewResult> 
         status: newStatus,
         ai_review_score: overallScore,
         ai_review_feedback: review.feedback,
+        technical_accuracy: review.technicalAccuracy,
+        content_quality: review.contentQuality,
+        engagement: review.engagement,
         reviewed_at: new Date().toISOString()
       })
       .eq('id', storyId);
@@ -829,7 +844,7 @@ export async function autoReviewStory(storyId: string): Promise<AIReviewResult> 
 
     // If published, award points to the author
     if (newStatus === 'published') {
-      await awardPoints(story.author_id, 50); // Award 50 points for published story
+      await awardPoints(story.author_id, 50);
     }
 
     return {
