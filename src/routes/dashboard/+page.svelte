@@ -777,12 +777,20 @@
                   >
                     {@html icons.link}
                   </a>
-                  <span class="status {note.status}">{note.status}</span>
+                  <div class="story-meta">
+                    <div class="meta-left">
+                      <div class="story-type">{note.type.replace(/-/g, ' ')}</div>
+                      <div class="status-indicator" class:published={note.status === 'published'} class:review={note.status === 'in_review'} class:draft={note.status === 'draft'}>
+                        <span class="status-dot"></span>
+                        {note.status}
+                      </div>
+                    </div>
+                    <time>{formatRelativeTime(note.timestamp)}</time>
+                  </div>
                 </div>
               </div>
               <p class="preview">{note.content.slice(0, 200)}...</p>
               <div class="meta">
-                <span class="timestamp">{note.timestamp}</span>
                 {#if note.wallet_address}
                   <span class="wallet-tag" title="Published with Web3 Wallet">
                     <svg 
@@ -936,7 +944,7 @@
             class="social-link"
           >
             <svg viewBox="0 0 24 24" class="social-icon">
-              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.236 1.07 1.835 2.809 1.305 1.23 1.91 1.995 5.786 1.995 5.786 0 13.255-7.098 13.255-13.254 0"></path>
+              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.236 1.07 1.835 2.809 2.809 1.305 1.23 1.91 1.995 5.786 1.995 5.786 0 13.255-7.098 13.255-13.254 0"></path>
             </svg>
             {baseName.github}
           </a>
@@ -2047,5 +2055,54 @@
     .pagination-button {
       width: 100%;
     }
+  }
+
+  .meta-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: capitalize;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .status-indicator.published {
+    color: #22C55E;
+    background: rgba(34, 197, 94, 0.1);
+  }
+
+  .status-indicator.published .status-dot {
+    background: #22C55E;
+  }
+
+  .status-indicator.review {
+    color: #EAB308;
+    background: rgba(234, 179, 8, 0.1);
+  }
+
+  .status-indicator.review .status-dot {
+    background: #EAB308;
+  }
+
+  .status-indicator.draft {
+    color: #92400E;
+    background: rgba(146, 64, 14, 0.1);
+  }
+
+  .status-indicator.draft .status-dot {
+    background: #92400E;
   }
 </style> 
