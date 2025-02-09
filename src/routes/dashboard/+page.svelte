@@ -122,6 +122,117 @@
     hasMetaMask = browser && typeof window !== 'undefined' && window.ethereum !== undefined;
   });
 
+  onMount(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        goto('/');
+        return;
+      }
+
+      user = session.user;
+      userInitials = user.email
+        ?.split('@')[0]
+        .split('.')
+        .map((n: string) => n[0].toUpperCase())
+        .join('') || '?';
+
+      // Create profile if it doesn't exist
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ 
+          id: user.id, 
+          email: user.email,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        })
+        .select('wallet_address, wallet_status')
+        .single();
+
+      if (profileError) throw profileError;
+
+      walletStatus = profile?.wallet_status || '';
+
+      if (profile?.wallet_address) {
+        wallet = { 
+          address: profile.wallet_address,
+          network: 'Arbitrum Sepolia'
+        };
+        await fetchWalletBalance();
+      } else if (walletStatus === 'creating') {
+        // Subscribe to profile changes
+        const subscription = supabase
+          .channel('profile-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`
+            },
+            async (payload) => {
+              const updatedProfile = payload.new;
+              if (updatedProfile.wallet_status === 'active' && updatedProfile.wallet_address) {
+                wallet = {
+                  address: updatedProfile.wallet_address,
+                  network: 'Arbitrum Sepolia'
+                };
+                await fetchWalletBalance();
+                showToast('Wallet created successfully', 'success');
+                subscription.unsubscribe();
+              } else if (updatedProfile.wallet_status === 'failed') {
+                walletStatus = 'failed';
+                showToast('Failed to create wallet', 'error');
+                subscription.unsubscribe();
+              }
+            }
+          )
+          .subscribe();
+
+        // Set timeout to prevent infinite waiting
+        setTimeout(() => {
+          if (walletStatus === 'creating') {
+            walletStatus = 'failed';
+            showToast('Wallet creation timed out', 'error');
+            subscription.unsubscribe();
+          }
+        }, 30000);
+      }
+
+      // Fetch initial data
+      recentNotes = await fetchRecentNotes();
+      stats = await fetchUserStats();
+    } catch (err) {
+      console.error('Failed to initialize dashboard:', err);
+      showToast('Failed to load dashboard data', 'error');
+    } finally {
+      loading = false;
+    }
+
+    if (wallet?.address) {
+      await fetchBaseName();
+    }
+
+    // Restore MetaMask connection if previously connected
+    if (hasMetaMask) {
+      const savedAddress = localStorage.getItem('metamask_address');
+      if (savedAddress) {
+        try {
+          metamaskAddress = savedAddress;
+          metamaskBalance = await getMetaMaskBalance(savedAddress);
+        } catch (err) {
+          console.error('Failed to restore MetaMask connection:', err);
+          // If there's an error, clear the saved address
+          localStorage.removeItem('metamask_address');
+          metamaskAddress = null;
+          metamaskBalance = '0.0000';
+        }
+      }
+    }
+  });
+
   async function fetchRecentNotes() {
     loadingNotes = true;
     try {
@@ -133,7 +244,7 @@
 
       // If MetaMask is connected, include its stories too
       if (metamaskAddress) {
-        query = query.or(`author_id.eq.${user.id},wallet_address.eq.${metamaskAddress}`);
+        query = query.or(`wallet_address.eq.${metamaskAddress},author_id.eq.${user.id}`);
       } else {
         query = query.eq('author_id', user.id);
       }
@@ -150,8 +261,8 @@
         timestamp: formatRelativeTime(story.created_at),
         type: story.story_type,
         wallet_address: story.wallet_address,
-        likes: story.likes,
-        comments: story.comments
+        likes: story.likes || 0,
+        comments: story.comments || 0
       }));
     } catch (err) {
       console.error('Failed to fetch stories:', err);
@@ -237,111 +348,6 @@
       baseNameLoading = false;
     }
   }
-
-  onMount(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      goto('/');
-      return;
-    }
-
-    user = session.user;
-    userInitials = user.email
-      ?.split('@')[0]
-      .split('.')
-      .map((n: string) => n[0].toUpperCase())
-      .join('') || '?';
-
-    try {
-      // Get user profile with wallet
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('wallet_address, wallet_status')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      walletStatus = profile?.wallet_status || '';
-
-      if (profile?.wallet_address) {
-        wallet = { 
-          address: profile.wallet_address,
-          network: 'Arbitrum Sepolia'
-        };
-        await fetchWalletBalance();
-      } else if (walletStatus === 'creating') {
-        // Subscribe to profile changes
-        const subscription = supabase
-          .channel('profile-changes')
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'profiles',
-              filter: `id=eq.${user.id}`
-            },
-            async (payload) => {
-              const updatedProfile = payload.new;
-              if (updatedProfile.wallet_status === 'active' && updatedProfile.wallet_address) {
-                wallet = {
-                  address: updatedProfile.wallet_address,
-                  network: 'Arbitrum Sepolia'
-                };
-                await fetchWalletBalance();
-                showToast('Wallet created successfully', 'success');
-                subscription.unsubscribe();
-              } else if (updatedProfile.wallet_status === 'failed') {
-                walletStatus = 'failed';
-                showToast('Failed to create wallet', 'error');
-                subscription.unsubscribe();
-              }
-            }
-          )
-          .subscribe();
-
-        // Set timeout to prevent infinite waiting
-        setTimeout(() => {
-          if (walletStatus === 'creating') {
-            walletStatus = 'failed';
-            showToast('Wallet creation timed out', 'error');
-            subscription.unsubscribe();
-          }
-        }, 30000);
-      }
-
-      // Fetch initial data
-      recentNotes = await fetchRecentNotes();
-      stats = await fetchUserStats();
-    } catch (err) {
-      console.error('Failed to initialize dashboard:', err);
-      showToast('Failed to load dashboard data', 'error');
-    } finally {
-      loading = false;
-    }
-
-    if (wallet?.address) {
-      await fetchBaseName();
-    }
-
-    // Restore MetaMask connection if previously connected
-    if (hasMetaMask) {
-      const savedAddress = localStorage.getItem('metamask_address');
-      if (savedAddress) {
-        try {
-          metamaskAddress = savedAddress;
-          metamaskBalance = await getMetaMaskBalance(savedAddress);
-        } catch (err) {
-          console.error('Failed to restore MetaMask connection:', err);
-          // If there's an error, clear the saved address
-          localStorage.removeItem('metamask_address');
-          metamaskAddress = null;
-          metamaskBalance = '0.0000';
-        }
-      }
-    }
-  });
 
   async function handleSignOut() {
     try {

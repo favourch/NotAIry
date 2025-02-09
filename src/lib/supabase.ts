@@ -5,18 +5,19 @@ import { browser } from '$app/environment'
 if (!PUBLIC_SUPABASE_URL) throw new Error('Missing PUBLIC_SUPABASE_URL')
 if (!PUBLIC_SUPABASE_ANON_KEY) throw new Error('Missing PUBLIC_SUPABASE_ANON_KEY')
 
-// Create a single supabase instance
-const supabaseInstance = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: `sb-${PUBLIC_SUPABASE_URL}-auth-token`
+// Create a single instance with a unique storage key
+export const supabase = createClient(
+  PUBLIC_SUPABASE_URL,
+  PUBLIC_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'notairy-auth-token' // Add unique storage key
+    }
   }
-});
-
-// Export the singleton instance
-export const supabase = browser ? supabaseInstance : null;
+)
 
 export interface User {
   id: string
