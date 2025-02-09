@@ -4,6 +4,7 @@
   import { supabase } from '$lib/supabase';
   import Toast from '$lib/components/Toast.svelte';
   import { page } from '$app/stores';
+  import { marked } from 'marked';
 
   let story: any = null;
   let loading = true;
@@ -77,6 +78,9 @@
       .map(part => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
   }
+
+  // Add markdown rendering
+  $: renderedContent = story?.content ? marked(story.content) : '';
 </script>
 
 <div class="story-container">
@@ -142,8 +146,8 @@
           {/each}
         </div>
       </header>
-      <div class="content">
-        {story.content}
+      <div class="content markdown-content">
+        {@html renderedContent}
       </div>
       <footer class="story-footer">
         <div class="engagement-actions">
@@ -232,7 +236,6 @@
     color: rgba(255, 255, 255, 0.9);
     font-size: 16px;
     line-height: 1.8;
-    white-space: pre-wrap;
   }
 
   .story-meta {
@@ -407,5 +410,105 @@
     .story h1 {
       font-size: 24px;
     }
+  }
+
+  /* Markdown content styles */
+  .markdown-content :global(h1) {
+    font-size: 2em;
+    margin: 0.67em 0;
+    color: white;
+  }
+
+  .markdown-content :global(h2) {
+    font-size: 1.5em;
+    margin: 0.83em 0;
+    color: white;
+  }
+
+  .markdown-content :global(h3) {
+    font-size: 1.17em;
+    margin: 1em 0;
+    color: white;
+  }
+
+  .markdown-content :global(p) {
+    margin: 1em 0;
+  }
+
+  .markdown-content :global(ul), 
+  .markdown-content :global(ol) {
+    margin: 1em 0;
+    padding-left: 2em;
+  }
+
+  .markdown-content :global(li) {
+    margin: 0.5em 0;
+  }
+
+  .markdown-content :global(code) {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'SF Mono', monospace;
+    font-size: 0.9em;
+  }
+
+  .markdown-content :global(pre) {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1em;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+
+  .markdown-content :global(pre code) {
+    background: none;
+    padding: 0;
+  }
+
+  .markdown-content :global(blockquote) {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 4px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .markdown-content :global(a) {
+    color: #8B5CF6;
+    text-decoration: none;
+  }
+
+  .markdown-content :global(a:hover) {
+    text-decoration: underline;
+  }
+
+  .markdown-content :global(hr) {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 2em 0;
+  }
+
+  .markdown-content :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+  }
+
+  .markdown-content :global(th),
+  .markdown-content :global(td) {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.5em;
+    text-align: left;
+  }
+
+  .markdown-content :global(th) {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .markdown-content :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 1em 0;
   }
 </style> 
