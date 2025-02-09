@@ -84,9 +84,7 @@
           content,
           story_type,
           created_at,
-          author:author_id (
-            email
-          )
+          wallet_address
         `)
         .eq('status', 'published')
         .order('created_at', { ascending: false })
@@ -128,6 +126,11 @@
   onMount(() => {
     loadStories();
   });
+
+  // Add helper function to format wallet address
+  function formatAddress(address: string): string {
+    return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
+  }
 </script>
 
 <div class="stories-container">
@@ -166,7 +169,27 @@
             {@html getPreviewText(story.content)}
           </p>
           <div class="story-footer">
-            <div class="author">By {story.author?.email?.split('@')[0] || 'Anonymous'}</div>
+            {#if story.wallet_address}
+              <div class="wallet-tag" title="Published with Web3 Wallet">
+                <svg 
+                  class="wallet-mini-icon" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  stroke-width="2" 
+                  stroke-linecap="round" 
+                  stroke-linejoin="round"
+                >
+                  <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
+                  <path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2" />
+                  <line x1="16" y1="11" x2="16" y2="11.01" />
+                  <line x1="19" y1="11" x2="19" y2="11.01" />
+                </svg>
+                {formatAddress(story.wallet_address)}
+              </div>
+            {:else}
+              <div></div>
+            {/if}
             <div class="read-more">Read more →</div>
           </div>
         </a>
@@ -386,24 +409,32 @@
     max-height: 1.6em;
   }
 
+  .wallet-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(246, 133, 27, 0.1);
+    border: 1px solid #F6851B;
+    color: #F6851B;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-family: 'SF Mono', monospace;
+    width: fit-content;
+  }
+
+  .wallet-mini-icon {
+    width: 12px;
+    height: 12px;
+  }
+
   .story-footer {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
     margin-top: auto;
     padding-top: 24px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .author {
-    font-size: 14px;
-    color: #A5A5A5;
-  }
-
-  .read-more {
-    color: #8B5CF6;
-    font-size: 14px;
-    font-weight: 500;
   }
 
   .pagination {
