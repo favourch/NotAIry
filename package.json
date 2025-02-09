@@ -25,6 +25,7 @@
 		"@supabase/auth-helpers-sveltekit": "^0.13.0",
 		"@supabase/supabase-js": "^2.48.1",
 		"@wagmi/core": "^2.16.3",
+		"marked": "^15.0.6",
 		"viem": "^2.22.22"
 	}
 }

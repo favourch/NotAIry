@@ -1,7 +1,7 @@
 import { supabase } from '$lib/supabase';
 
 export const getGaiaHeaders = () => ({
-  'Authorization': `Bearer ${import.meta.env.GAIA_API_KEY}`,
+  'Authorization': `Bearer ${import.meta.env.GAIA_API_KEY || 'gaia-YTM3NzcxMTUtYmJiOC00ODdhLWFiOGQtODg2NTc1MmNlMzdm-VGxeqQRzepKOSSqF'}`,
   'Content-Type': 'application/json'
 });
 
@@ -606,4 +606,100 @@ export async function calculateConsensus(elementId: string): Promise<number> {
 
   const positiveVerifications = verifications.filter(v => v.is_verified).length;
   return Math.round((positiveVerifications / verifications.length) * 100);
+}
+
+const GAIA_ENDPOINT = 'https://coder.gaia.domains/v1';
+const GAIA_API_KEY = 'gaia-YTM3NzcxMTUtYmJiOC00ODdhLWFiOGQtODg2NTc1MmNlMzdm-VGxeqQRzepKOSSqF';
+
+export async function generateStoryIdeas(prompt: string) {
+  try {
+    const response = await fetch(`${GAIA_ENDPOINT}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GAIA_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'coder',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a creative writing assistant helping generate Web3 and tech startup stories. 
+                     Focus on technical accuracy and engaging narratives.
+                     Include:
+                     - A compelling title
+                     - The main technical challenge or innovation
+                     - Key story points
+                     - Potential impact on the industry`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate story ideas');
+    }
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (err) {
+    console.error('Failed to generate story ideas:', err);
+    throw err;
+  }
+}
+
+export async function reviewStory(title: string, content: string, type: string) {
+  try {
+    const response = await fetch(`${GAIA_ENDPOINT}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GAIA_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'coder',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a tech story reviewer specializing in ${type} stories.
+                     Review the story and provide structured feedback on:
+                     1. Technical Accuracy
+                     2. Story Structure and Flow
+                     3. Engagement and Impact
+                     4. Suggested Improvements
+                     
+                     Keep feedback constructive and specific.`
+          },
+          {
+            role: 'user',
+            content: `Please review this ${type} story:\n\nTitle: ${title}\n\nContent: ${content}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to review story');
+    }
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (err) {
+    console.error('Failed to review story:', err);
+    throw err;
+  }
 } 
