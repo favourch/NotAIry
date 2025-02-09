@@ -733,4 +733,116 @@ export async function generateImage(prompt: string) {
     console.error('Failed to generate image:', err);
     throw err;
   }
+}
+
+// Add these interfaces
+interface AIReviewResult {
+  score: number;
+  feedback: string;
+  technicalAccuracy: number;
+  contentQuality: number;
+  engagement: number;
+  recommendation: 'publish' | 'reject' | 'revise';
+}
+
+// Add this function to automatically review and update story status
+export async function autoReviewStory(storyId: string): Promise<AIReviewResult> {
+  try {
+    // Get the story
+    const { data: story, error: storyError } = await supabase
+      .from('stories')
+      .select('*')
+      .eq('id', storyId)
+      .single();
+
+    if (storyError) throw storyError;
+
+    // Generate AI review
+    const response = await fetch(`${GAIA_ENDPOINT}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GAIA_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'coder',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert content reviewer for tech and Web3 stories.
+                     Analyze the story and provide a structured review with scores.
+                     Focus on:
+                     1. Technical accuracy (0-100)
+                     2. Content quality and clarity (0-100)
+                     3. Reader engagement (0-100)
+                     
+                     Provide your review in JSON format with the following structure:
+                     {
+                       "technicalAccuracy": number,
+                       "contentQuality": number,
+                       "engagement": number,
+                       "feedback": "detailed feedback string",
+                       "recommendation": "publish" | "reject" | "revise"
+                     }
+                     
+                     Recommend "publish" if average score > 80
+                     Recommend "revise" if average score 60-80
+                     Recommend "reject" if average score < 60`
+          },
+          {
+            role: 'user',
+            content: `Review this ${story.story_type} story:\n\nTitle: ${story.title}\n\nContent: ${story.content}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to review story');
+    }
+
+    const data = await response.json();
+    const review = JSON.parse(data.choices[0].message.content);
+
+    // Calculate overall score
+    const overallScore = (review.technicalAccuracy + review.contentQuality + review.engagement) / 3;
+
+    // Update story status based on AI recommendation
+    const newStatus = review.recommendation === 'publish' ? 'published' : 
+                     review.recommendation === 'reject' ? 'rejected' : 
+                     'in_review';
+
+    const { error: updateError } = await supabase
+      .from('stories')
+      .update({ 
+        status: newStatus,
+        ai_review_score: overallScore,
+        ai_review_feedback: review.feedback,
+        reviewed_at: new Date().toISOString()
+      })
+      .eq('id', storyId);
+
+    if (updateError) throw updateError;
+
+    // If published, award points to the author
+    if (newStatus === 'published') {
+      await awardPoints(story.author_id, 50); // Award 50 points for published story
+    }
+
+    return {
+      score: overallScore,
+      feedback: review.feedback,
+      technicalAccuracy: review.technicalAccuracy,
+      contentQuality: review.contentQuality,
+      engagement: review.engagement,
+      recommendation: review.recommendation
+    };
+
+  } catch (err) {
+    console.error('Auto-review failed:', err);
+    throw err;
+  }
 } 

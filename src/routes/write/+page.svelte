@@ -4,7 +4,7 @@
   import { supabase } from '$lib/supabase';
   import Toast from '$lib/components/Toast.svelte';
   import { connectMetaMask } from '$lib/metamask';
-  import { generateStoryIdeas, reviewStory, generateImage } from '$lib/gaia';
+  import { generateStoryIdeas, reviewStory, generateImage, autoReviewStory } from '$lib/gaia';
   import { marked } from 'marked';
 
   let title = '';
@@ -65,7 +65,6 @@
       try {
         const address = await connectMetaMask();
         metamaskAddress = address;
-        // Save to localStorage when connecting
         localStorage.setItem('metamask_address', address);
       } catch (err) {
         showToast('Please connect MetaMask to publish', 'error');
@@ -81,25 +80,37 @@
         return;
       }
 
-      const { error } = await supabase.from('stories').insert({
-        title,
-        content,
-        story_type: storyType,
-        author_id: user.id,
-        wallet_address: metamaskAddress,
-        status: STATUS.PENDING,
-        created_at: new Date().toISOString()
-      });
+      const { data: story, error } = await supabase
+        .from('stories')
+        .insert({
+          title,
+          content,
+          story_type: storyType,
+          author_id: user.id,
+          wallet_address: metamaskAddress,
+          status: 'in_review',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-      if (error) {
-        console.error('Error details:', error);
-        throw error;
+      if (error) throw error;
+
+      showToast('Story submitted, running AI review...', 'info');
+      
+      const review = await autoReviewStory(story.id);
+      
+      if (review.recommendation === 'publish') {
+        showToast('Story approved and published!', 'success');
+      } else if (review.recommendation === 'reject') {
+        showToast('Story needs revision. Check your dashboard for feedback.', 'error');
+      } else {
+        showToast('Story submitted for manual review.', 'info');
       }
 
-      showToast('Story submitted for review', 'success');
       goto('/dashboard');
     } catch (err) {
-      console.error('Failed to publish story:', err);
+      console.error('Failed to submit story:', err);
       showToast('Failed to submit story', 'error');
     } finally {
       saving = false;
