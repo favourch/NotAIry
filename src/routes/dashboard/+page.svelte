@@ -678,21 +678,27 @@
         <div class="stat-card">
           <h3>Stories Published</h3>
           <p>{stats.notesSubmitted}</p>
-      </div>
+        </div>
         <div class="stat-card">
           <h3>Total Reads</h3>
           <p>{stats.verificationScore}</p>
-          </div>
+        </div>
         <div class="stat-card">
           <h3>Community Score</h3>
           <p>{stats.reputationScore}</p>
-          </div>
+        </div>
         <div class="stat-card">
           <h3>Pending Stories</h3>
           <p>{stats.pendingVerifications}</p>
         </div>
       </div>
-      </div>
+    </div>
+    <div class="right">
+      <button class="write-button" on:click={() => goto('/write')}>
+        {@html icons.pen}
+        Write a Story
+      </button>
+    </div>
   </header>
 
   <main>
@@ -903,6 +909,9 @@
   }
 
   header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 60px;
   }
 
@@ -1799,5 +1808,45 @@
   .story-link:hover {
     color: white;
     background: rgba(255, 255, 255, 0.05);
+  }
+
+  .right {
+    padding-top: 8px;
+  }
+
+  .write-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #22C55E;
+    border: none;
+    color: white;
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .write-button:hover {
+    background: #16A34A;
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 768px) {
+    header {
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .right {
+      width: 100%;
+      padding-top: 0;
+    }
+
+    .write-button {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style> 
