@@ -63,6 +63,9 @@
     timestamp: string;
     status: 'pending' | 'verified' | 'rejected';
     consensus: string;
+    wallet_address?: string;
+    likes?: number;
+    comments?: number;
   }
 
   let loading = true;
@@ -122,12 +125,20 @@
   async function fetchRecentNotes() {
     loadingNotes = true;
     try {
-      const { data: stories, error } = await supabase
+      let query = supabase
         .from('stories')
         .select('*')
-        .eq('author_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
+
+      // If MetaMask is connected, include its stories too
+      if (metamaskAddress) {
+        query = query.or(`author_id.eq.${user.id},wallet_address.eq.${metamaskAddress}`);
+      } else {
+        query = query.eq('author_id', user.id);
+      }
+
+      const { data: stories, error } = await query;
 
       if (error) throw error;
 
@@ -137,7 +148,8 @@
         content: story.content,
         status: story.status,
         timestamp: formatRelativeTime(story.created_at),
-        type: 'story', // Default type
+        type: story.story_type,
+        wallet_address: story.wallet_address,
         likes: story.likes,
         comments: story.comments
       }));
@@ -312,6 +324,23 @@
     if (wallet?.address) {
       await fetchBaseName();
     }
+
+    // Restore MetaMask connection if previously connected
+    if (hasMetaMask) {
+      const savedAddress = localStorage.getItem('metamask_address');
+      if (savedAddress) {
+        try {
+          metamaskAddress = savedAddress;
+          metamaskBalance = await getMetaMaskBalance(savedAddress);
+        } catch (err) {
+          console.error('Failed to restore MetaMask connection:', err);
+          // If there's an error, clear the saved address
+          localStorage.removeItem('metamask_address');
+          metamaskAddress = null;
+          metamaskBalance = '0.0000';
+        }
+      }
+    }
   });
 
   async function handleSignOut() {
@@ -403,6 +432,8 @@
       const address = await connectMetaMask();
       metamaskAddress = address;
       metamaskBalance = await getMetaMaskBalance(address);
+      // Save to localStorage
+      localStorage.setItem('metamask_address', address);
       showToast('MetaMask connected successfully', 'success');
     } catch (err: any) {
       console.error('Failed to connect MetaMask:', err);
@@ -414,6 +445,8 @@
     try {
       metamaskAddress = null;
       metamaskBalance = '0.0000';
+      // Remove from localStorage
+      localStorage.removeItem('metamask_address');
       showToast('MetaMask disconnected successfully', 'success');
     } catch (err) {
       console.error('Failed to disconnect MetaMask:', err);
@@ -437,6 +470,10 @@
       baseNameLoading = false;
     }
   }
+
+  // Update the story card to show wallet address if present
+  $: formattedAddress = (address: string) => 
+    address ? `${address.slice(0,6)}...${address.slice(-4)}` : '';
 </script>
 
 <nav class="navbar">
@@ -686,12 +723,22 @@
               <p class="preview">{note.content.slice(0, 200)}...</p>
               <div class="meta">
                 <span class="timestamp">{note.timestamp}</span>
+                {#if note.wallet_address}
+                  <span class="wallet-tag" title="Published with MetaMask">
+                    <img 
+                      src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" 
+                      alt="MetaMask" 
+                      class="metamask-mini-icon"
+                    />
+                    {formattedAddress(note.wallet_address)}
+                  </span>
+                {/if}
                 <div class="engagement">
                   <span class="likes" title="Likes">
-                    {@html icons.heart} {Math.floor(Math.random() * 100)}
+                    {@html icons.heart} {note.likes || 0}
                   </span>
                   <span class="comments" title="Comments">
-                    {@html icons.comment} {Math.floor(Math.random() * 20)}
+                    {@html icons.comment} {note.comments || 0}
                   </span>
                 </div>
               </div>
@@ -1690,5 +1737,23 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .wallet-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(246, 133, 27, 0.1);
+    border: 1px solid #F6851B;
+    color: #F6851B;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-family: 'SF Mono', monospace;
+  }
+
+  .metamask-mini-icon {
+    width: 12px;
+    height: 12px;
   }
 </style> 
