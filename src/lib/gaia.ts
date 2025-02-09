@@ -702,4 +702,35 @@ export async function reviewStory(title: string, content: string, type: string) 
     console.error('Failed to review story:', err);
     throw err;
   }
+}
+
+const PORTRAIT_ENDPOINT = 'https://portrait.gaia.domains/v1';
+
+export async function generateImage(prompt: string) {
+  try {
+    const response = await fetch(`${PORTRAIT_ENDPOINT}/images/generations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.GAIA_API_KEY || 'gaia-YTM3NzcxMTUtYmJiOC00ODdhLWFiOGQtODg2NTc1MmNlMzdm-VGxeqQRzepKOSSqF'}`
+      },
+      body: JSON.stringify({
+        model: 'portrait',
+        prompt,
+        n: 1,
+        size: '512x512',
+        response_format: 'url'
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate image');
+    }
+    const data = await response.json();
+    return data.data[0].url;
+  } catch (err) {
+    console.error('Failed to generate image:', err);
+    throw err;
+  }
 } 

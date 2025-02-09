@@ -4,7 +4,7 @@
   import { supabase } from '$lib/supabase';
   import Toast from '$lib/components/Toast.svelte';
   import { connectMetaMask } from '$lib/metamask';
-  import { generateStoryIdeas, reviewStory } from '$lib/gaia';
+  import { generateStoryIdeas, reviewStory, generateImage } from '$lib/gaia';
   import { marked } from 'marked';
 
   let title = '';
@@ -19,6 +19,9 @@
   let feedback: string | null = null;
   let previewMode = false;
   let renderedContent = '';
+  let generatingImage = false;
+  let imagePrompt = '';
+  let generatedImages: string[] = [];
 
   const types = [
     { value: 'smart-contract', label: 'Smart Contract', icon: '⚡' },
@@ -34,7 +37,8 @@
     review: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
     spinner: `<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`,
     edit: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
-    preview: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`
+    preview: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
+    image: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`
   };
 
   const STATUS = {
@@ -190,6 +194,31 @@
     }
   }
 
+  async function handleGenerateImage() {
+    if (!imagePrompt.trim()) {
+      showToast('Please enter an image prompt', 'error');
+      return;
+    }
+
+    generatingImage = true;
+    try {
+      const imageUrl = await generateImage(imagePrompt);
+      generatedImages = [...generatedImages, imageUrl];
+      
+      // Add image markdown to content
+      const imageMarkdown = `\n![Generated Image](${imageUrl})\n`;
+      content = content + imageMarkdown;
+      
+      showToast('Image generated!', 'success');
+      imagePrompt = ''; // Clear prompt after successful generation
+    } catch (err) {
+      console.error('Failed to generate image:', err);
+      showToast('Failed to generate image. Please try again.', 'error');
+    } finally {
+      generatingImage = false;
+    }
+  }
+
   // Update markdown preview whenever content changes
   $: {
     try {
@@ -314,6 +343,51 @@
           class="content-input"
           rows="20"
         ></textarea>
+      {/if}
+    </div>
+
+    <div class="form-group image-generation">
+      <div class="image-input-group">
+        <input
+          type="text"
+          placeholder="Enter image prompt..."
+          bind:value={imagePrompt}
+          class="image-prompt-input"
+        />
+        <button 
+          class="generate-image-button"
+          on:click={handleGenerateImage}
+          disabled={generatingImage}
+        >
+          {#if generatingImage}
+            {@html icons.spinner}
+            Generating...
+          {:else}
+            {@html icons.image}
+            Generate Image
+          {/if}
+        </button>
+      </div>
+      
+      {#if generatedImages.length > 0}
+        <div class="generated-images">
+          {#each generatedImages as imageUrl}
+            <div class="image-preview">
+              <img src={imageUrl} alt="Generated" />
+              <button 
+                class="copy-markdown-button"
+                on:click={() => {
+                  const markdown = `![Generated Image](${imageUrl})`;
+                  content = content + '\n' + markdown + '\n';
+                  showToast('Image markdown added to content', 'success');
+                }}
+              >
+                {@html icons.copy}
+                Copy Markdown
+              </button>
+            </div>
+          {/each}
+        </div>
       {/if}
     </div>
   </div>
@@ -710,5 +784,95 @@
 
   .markdown-content :global(th) {
     background: rgba(255, 255, 255, 0.05);
+  }
+
+  .image-generation {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 16px;
+  }
+
+  .image-input-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .image-prompt-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  .generate-image-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(139, 92, 246, 0.1);
+    color: rgb(139, 92, 246);
+    border: 1px solid rgb(139, 92, 246);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .generate-image-button:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .generate-image-button:disabled {
+    opacity: 0.7;
+    cursor: wait;
+  }
+
+  .generated-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .image-preview {
+    position: relative;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .image-preview img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 6px;
+  }
+
+  .copy-markdown-button {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+  }
+
+  .copy-markdown-button:hover {
+    background: rgba(0, 0, 0, 0.9);
+    transform: translateY(-1px);
   }
 </style> 
