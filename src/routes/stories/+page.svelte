@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import Toast from '$lib/components/Toast.svelte';
+  import { marked } from 'marked';
 
   let stories: any[] = [];
   let loading = true;
@@ -34,6 +35,25 @@
       month: 'long',
       day: 'numeric'
     });
+  }
+
+  // Function to safely get preview text from markdown
+  function getPreviewText(markdown: string, length: number = 150): string {
+    try {
+      // Convert markdown to plain text by removing HTML tags
+      const plainText = marked(markdown)
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+      
+      // Get preview and add ellipsis if needed
+      return plainText.length > length 
+        ? plainText.slice(0, length) + '...'
+        : plainText;
+    } catch (err) {
+      console.error('Failed to parse markdown:', err);
+      return markdown.slice(0, length) + '...';
+    }
   }
 
   async function loadStories() {
@@ -142,7 +162,9 @@
             <time>{formatDate(story.created_at)}</time>
           </div>
           <h2>{story.title}</h2>
-          <p class="preview">{story.content.slice(0, 150)}...</p>
+          <p class="preview">
+            {@html getPreviewText(story.content)}
+          </p>
           <div class="story-footer">
             <div class="author">By {story.author?.email?.split('@')[0] || 'Anonymous'}</div>
             <div class="read-more">Read more →</div>
@@ -335,6 +357,33 @@
     line-height: 1.6;
     margin: 0 0 24px;
     flex-grow: 1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+
+  /* Add styles for any markdown elements that might show up in preview */
+  .preview :global(p) {
+    margin: 0;
+  }
+
+  .preview :global(a) {
+    color: #8B5CF6;
+    text-decoration: none;
+  }
+
+  .preview :global(code) {
+    font-family: 'SF Mono', monospace;
+    font-size: 14px;
+    padding: 2px 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+
+  .preview :global(pre) {
+    overflow: hidden;
+    max-height: 1.6em;
   }
 
   .story-footer {
