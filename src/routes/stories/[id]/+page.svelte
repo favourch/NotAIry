@@ -9,6 +9,7 @@
   let story: any = null;
   let loading = true;
   let toast: { message: string; type: 'success' | 'error' | 'info' } | null = null;
+  let resubmitting = false;
 
   const icons = {
     back: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>`,
@@ -81,6 +82,30 @@
 
   // Add markdown rendering
   $: renderedContent = story?.content ? marked(story.content) : '';
+
+  async function handleResubmit() {
+    if (resubmitting) return;
+    resubmitting = true;
+    try {
+      const { error } = await supabase
+        .from('stories')
+        .update({ 
+          status: 'in_review',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', story.id);
+
+      if (error) throw error;
+      
+      showToast('Story resubmitted for review', 'success');
+      goto(`/stories/${story.id}?${Date.now()}`, { replaceState: true });
+    } catch (err) {
+      console.error('Failed to resubmit story:', err);
+      showToast('Failed to resubmit story', 'error');
+    } finally {
+      resubmitting = false;
+    }
+  }
 </script>
 
 <div class="story-container">
@@ -107,6 +132,43 @@
           <div class="status-badge {story.status}">{story.status}</div>
           <div class="meta-actions">
             <time class="timestamp">{formatDate(story.created_at)}</time>
+            {#if story.status === 'rejected' || story.status === 'in_review'}
+              <button class="resubmit-button" on:click={handleResubmit} disabled={resubmitting}>
+                {#if resubmitting}
+                  <svg 
+                    class="spinner-icon" 
+                    width="16" 
+                    height="16" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="2" 
+                    stroke-linecap="round" 
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+                    <path d="M12 2v4"></path>
+                  </svg>
+                {:else}
+                  <svg 
+                    width="16" 
+                    height="16" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="2" 
+                    stroke-linecap="round" 
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 2v6h-6"></path>
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                    <path d="M3 22v-6h6"></path>
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                  </svg>
+                {/if}
+                {resubmitting ? 'Resubmitting...' : 'Resubmit for Review'}
+              </button>
+            {/if}
             <a 
               href="/stories/{story.id}/review" 
               class="review-link"
@@ -536,5 +598,28 @@
 
   .review-link:hover {
     text-decoration: underline;
+  }
+
+  .resubmit-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .spinner-icon {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .story-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
   }
 </style> 
