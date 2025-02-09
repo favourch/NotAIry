@@ -15,8 +15,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     return session;
   };
 
-  // Handle new user signup
-  if (event.url.pathname === '/auth/callback') {
+  // Handle both new signups and existing user logins
+  if (event.url.pathname === '/auth/callback' || event.url.pathname === '/dashboard') {
     const session = await event.locals.getSession();
     if (session) {
       try {
@@ -29,6 +29,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 
         // Create wallet if user doesn't have one
         if (!profile?.wallet_address) {
+          console.log('Creating wallet for user:', session.user.id);
+          
+          // First update profile to show wallet creation is in progress
+          await event.locals.supabase
+            .from('profiles')
+            .update({ 
+              wallet_status: 'creating',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', session.user.id);
+
           const response = await createPrivyWallet(event.request);
           const data = await response.json();
 
@@ -37,13 +48,34 @@ export const handle: Handle = async ({ event, resolve }) => {
               .from('profiles')
               .update({ 
                 wallet_address: data.address,
+                wallet_status: 'active',
                 updated_at: new Date().toISOString()
               })
               .eq('id', session.user.id);
+            
+            console.log('Wallet created successfully:', data.address);
+          } else {
+            await event.locals.supabase
+              .from('profiles')
+              .update({ 
+                wallet_status: 'failed',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', session.user.id);
+            
+            console.error('Failed to create wallet:', data);
           }
         }
       } catch (error) {
-        console.error('Failed to create wallet for new user:', error);
+        console.error('Failed to check/create wallet for user:', error);
+        // Update profile to show wallet creation failed
+        await event.locals.supabase
+          .from('profiles')
+          .update({ 
+            wallet_status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', session.user.id);
       }
     }
   }
@@ -51,9 +83,11 @@ export const handle: Handle = async ({ event, resolve }) => {
   // Check auth for API routes
   if (event.url.pathname.startsWith('/api/')) {
     const session = await event.locals.getSession();
+    const authHeader = event.request.headers.get('authorization');
+
     if (!session?.access_token) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }), 
+        JSON.stringify({ error: 'No active session' }), 
         { 
           status: 401,
           headers: {
@@ -63,14 +97,33 @@ export const handle: Handle = async ({ event, resolve }) => {
       );
     }
 
-    // Clone the request and add auth header
-    const newRequest = new Request(event.request.url, {
-      method: event.request.method,
-      headers: new Headers(event.request.headers),
-      body: event.request.body
-    });
-    newRequest.headers.set('Authorization', `Bearer ${session.access_token}`);
-    event.request = newRequest;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authorization header' }), 
+        { 
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    const providedToken = authHeader.split(' ')[1];
+    if (providedToken !== session.access_token) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }), 
+        { 
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    // Add session to request for downstream handlers
+    event.locals.session = session;
   }
 
   return resolve(event, {

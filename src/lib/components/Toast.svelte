@@ -1,69 +1,61 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  
-  export let message: string;
+  export let message: string | null = null;
   export let type: 'success' | 'error' | 'info' = 'info';
-  export let duration = 3000;
-  export let onClose: () => void;
+  
+  const TIMEOUT = 3000;
+  let visible = false;
+  let timeoutId: NodeJS.Timeout;
 
-  onMount(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, duration);
-
-    return () => clearTimeout(timer);
-  });
+  $: if (message) {
+    visible = true;
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      visible = false;
+    }, TIMEOUT);
+  }
 </script>
 
-<div class="toast" class:success={type === 'success'} class:error={type === 'error'}>
-  <span class="message">{message}</span>
-  <button class="close-button" on:click={onClose}>×</button>
-</div>
+{#if visible && message}
+  <div 
+    class="toast {type}"
+    role="alert"
+    on:click={() => visible = false}
+  >
+    <p>{message}</p>
+  </div>
+{/if}
 
 <style>
   .toast {
     position: fixed;
-    bottom: 2rem;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: 6px;
     background: rgba(0, 0, 0, 0.9);
     color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    z-index: 1000;
-    animation: slideUp 0.3s ease-out;
-  }
-
-  .success {
-    border-color: rgba(52, 199, 89, 0.2);
-  }
-
-  .error {
-    border-color: rgba(255, 59, 48, 0.2);
-  }
-
-  .message {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9375rem;
-  }
-
-  .close-button {
-    background: none;
-    border: none;
-    color: #A5A5A5;
-    font-size: 1.25rem;
+    font-size: 14px;
     cursor: pointer;
-    padding: 0;
-    line-height: 1;
+    z-index: 1000;
+    animation: slideUp 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .close-button:hover {
-    color: white;
+  .toast p {
+    margin: 0;
+  }
+
+  .toast.success {
+    border-left: 4px solid #10B981;
+  }
+
+  .toast.error {
+    border-left: 4px solid #EF4444;
+  }
+
+  .toast.info {
+    border-left: 4px solid #3B82F6;
   }
 
   @keyframes slideUp {

@@ -27,6 +27,15 @@ declare global {
 		readonly VITE_SUPABASE_URL: string
 		readonly VITE_SUPABASE_ANON_KEY: string
 	}
+
+	interface Window {
+		ethereum?: {
+			isMetaMask?: boolean;
+			request: (request: { method: string; params?: Array<any> }) => Promise<any>;
+			on: (eventName: string, callback: Function) => void;
+			removeListener: (eventName: string, callback: Function) => void;
+		};
+	}
 }
 
 export {};

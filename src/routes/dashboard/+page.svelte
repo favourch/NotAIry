@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { createWallet, getWalletBalance } from '$lib/privy';
+  import { getWalletBalance } from '$lib/privy';
   import Toast from '$lib/components/Toast.svelte';
   import { supabase } from '$lib/supabase';
   import { 
@@ -12,6 +12,10 @@
     CODER_API,
     getGaiaHeaders 
   } from '$lib/gaia';
+  import { connectMetaMask, getMetaMaskBalance } from '$lib/metamask';
+  import { browser } from '$app/environment';
+  import type { BaseNameProfile } from '$lib/basename';
+  import { getBaseNameProfile } from '$lib/basename';
 
   let toast: { message: string; type: 'success' | 'error' | 'info' } | null = null;
   
@@ -94,6 +98,26 @@
   let showProfileMenu = false;
 
   let walletBalance = '0.00';
+  let walletStatus = '';
+
+  let metamaskAddress: string | null = null;
+  let metamaskBalance = '0.0000';
+  let hasMetaMask = false;
+  let testAddress = '';
+
+  let baseName: BaseNameProfile | null = null;
+  let baseNameLoading = false;
+
+  // Update test addresses
+  const TEST_ADDRESSES = {
+    vitalik: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045', // vitalik.eth
+    cb: '0xa4b8c69f0d741b1baa779ab157ec671c99604e6f', // coinbase.eth
+  };
+
+  onMount(() => {
+    // Check for MetaMask availability
+    hasMetaMask = browser && typeof window !== 'undefined' && window.ethereum !== undefined;
+  });
 
   async function fetchRecentNotes() {
     loadingNotes = true;
@@ -152,7 +176,7 @@
 
       if (statsError) {
         console.error('Stats error:', statsError);
-        return {
+      return {
           notesSubmitted: 0,
           verificationScore: '0',
           pendingVerifications: 0,
@@ -188,6 +212,20 @@
     }
   }
 
+  async function fetchBaseName() {
+    if (!wallet?.address) return;
+    
+    baseNameLoading = true;
+    try {
+      baseName = await getBaseNameProfile(wallet.address);
+    } catch (err) {
+      console.error('Failed to fetch Base name:', err);
+      showToast('Failed to load Base name profile', 'error');
+    } finally {
+      baseNameLoading = false;
+    }
+  }
+
   onMount(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -206,11 +244,13 @@
       // Get user profile with wallet
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_address')
+        .select('wallet_address, wallet_status')
         .eq('id', user.id)
         .single();
 
       if (profileError) throw profileError;
+
+      walletStatus = profile?.wallet_status || '';
 
       if (profile?.wallet_address) {
         wallet = { 
@@ -218,15 +258,59 @@
           network: 'Arbitrum Sepolia'
         };
         await fetchWalletBalance();
+      } else if (walletStatus === 'creating') {
+        // Subscribe to profile changes
+        const subscription = supabase
+          .channel('profile-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`
+            },
+            async (payload) => {
+              const updatedProfile = payload.new;
+              if (updatedProfile.wallet_status === 'active' && updatedProfile.wallet_address) {
+                wallet = {
+                  address: updatedProfile.wallet_address,
+                  network: 'Arbitrum Sepolia'
+                };
+                await fetchWalletBalance();
+                showToast('Wallet created successfully', 'success');
+                subscription.unsubscribe();
+              } else if (updatedProfile.wallet_status === 'failed') {
+                walletStatus = 'failed';
+                showToast('Failed to create wallet', 'error');
+                subscription.unsubscribe();
+              }
+            }
+          )
+          .subscribe();
+
+        // Set timeout to prevent infinite waiting
+        setTimeout(() => {
+          if (walletStatus === 'creating') {
+            walletStatus = 'failed';
+            showToast('Wallet creation timed out', 'error');
+            subscription.unsubscribe();
+          }
+        }, 30000);
       }
 
+      // Fetch initial data
       recentNotes = await fetchRecentNotes();
       stats = await fetchUserStats();
     } catch (err) {
-      console.error('Error initializing dashboard:', err);
+      console.error('Failed to initialize dashboard:', err);
       showToast('Failed to load dashboard data', 'error');
     } finally {
       loading = false;
+    }
+
+    if (wallet?.address) {
+      await fetchBaseName();
     }
   });
 
@@ -253,6 +337,104 @@
     } catch (err) {
       console.error('Failed to copy address:', err);
       showToast('Failed to copy address', 'error');
+    }
+  }
+
+  async function handleCreateWallet() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      // Update status to creating
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          wallet_status: 'creating',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+      walletStatus = 'creating';
+
+      // Make sure we're using the latest session token
+      const response = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create wallet');
+      }
+
+      wallet = {
+        address: data.address,
+        network: data.network
+      };
+
+      await fetchWalletBalance();
+      showToast('Wallet created successfully', 'success');
+    } catch (err) {
+      console.error('Failed to create wallet:', err);
+      walletStatus = 'failed';
+      showToast('Failed to create wallet', 'error');
+
+      // Update profile status on failure
+      if (user?.id) {
+        await supabase
+          .from('profiles')
+          .update({ 
+            wallet_status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+      }
+    }
+  }
+
+  async function handleConnectMetaMask() {
+    try {
+      const address = await connectMetaMask();
+      metamaskAddress = address;
+      metamaskBalance = await getMetaMaskBalance(address);
+      showToast('MetaMask connected successfully', 'success');
+    } catch (err: any) {
+      console.error('Failed to connect MetaMask:', err);
+      showToast(err.message || 'Failed to connect MetaMask', 'error');
+    }
+  }
+
+  async function handleDisconnectMetaMask() {
+    try {
+      metamaskAddress = null;
+      metamaskBalance = '0.0000';
+      showToast('MetaMask disconnected successfully', 'success');
+    } catch (err) {
+      console.error('Failed to disconnect MetaMask:', err);
+      showToast('Failed to disconnect MetaMask', 'error');
+    }
+  }
+
+  async function testBaseName(address: string) {
+    baseNameLoading = true;
+    try {
+      baseName = await getBaseNameProfile(address);
+      if (baseName) {
+        showToast('Base name profile loaded', 'success');
+      } else {
+        showToast('No Base name found for this address', 'info');
+      }
+    } catch (err) {
+      console.error('Failed to fetch Base name:', err);
+      showToast('Failed to load Base name profile', 'error');
+    } finally {
+      baseNameLoading = false;
     }
   }
 </script>
@@ -288,54 +470,137 @@
             <div class="dropdown-menu">
               <div class="menu-header">
                 <span class="user-email">{user.email}</span>
-                <div class="wallet-section">
-                  <span class="wallet-label">Privy Wallet</span>
+                
+                <!-- Privy Wallet Card -->
+                <div class="wallet-card privy">
+                  <h3>Privy Wallet</h3>
                   {#if wallet}
-                    <div class="wallet-info">
+                    <div class="wallet-status connected">
                       <div class="wallet-details">
-                        <span class="wallet-status connected">Connected to {wallet.network}</span>
+                        <div class="address-container">
+                          <span class="wallet-address">{wallet.address.slice(0,6)}...{wallet.address.slice(-4)}</span>
+                          <button 
+                            class="copy-button" 
+                            on:click={() => copyAddress(wallet.address)}
+                            aria-label="Copy wallet address"
+                          >
+                            {@html icons.copy}
+                            <span class="tooltip">Copy address</span>
+                          </button>
+                          <a 
+                            href={`https://sepolia.arbiscan.io/address/${wallet.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="explorer-link"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                              <polyline points="15 3 21 3 21 9"></polyline>
+                              <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                          </a>
+                        </div>
                         <div class="balance">
                           <span class="balance-label">Balance:</span>
                           <span class="balance-amount">{walletBalance} ETH</span>
                         </div>
                       </div>
-                      <div class="address-container">
-                        <span class="wallet-address" title={wallet.address}>
-                          {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-                        </span>
-                        <button 
-                          class="copy-button" 
-                          on:click={() => copyAddress(wallet.address)}
-                          title="Copy full address"
-                        >
-                          {@html icons.copy}
-                          <span class="tooltip">Copy full address</span>
+                    </div>
+                  {:else}
+                    <div class="wallet-status">
+                      {#if walletStatus === 'creating'}
+                        <div class="loading">
+                          <div class="spinner"></div>
+                          Creating your Arbitrum Sepolia wallet...
+                        </div>
+                      {:else if walletStatus === 'failed'}
+                        <div class="error">
+                          Failed to create wallet. 
+                          <button class="retry-button" on:click={handleCreateWallet}>
+                            Try Again
+                          </button>
+                        </div>
+                      {:else}
+                        <div class="no-wallet">
+                          <p>No wallet connected</p>
+                          <button class="create-wallet-button" on:click={handleCreateWallet}>
+                            Create Wallet
+                          </button>
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- MetaMask Wallet Card -->
+                <div class="wallet-card metamask">
+                  <h3>MetaMask</h3>
+                  {#if !hasMetaMask}
+                    <div class="no-metamask">
+                      <p>MetaMask not installed</p>
+                      <a 
+                        href="https://metamask.io/download/" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        class="install-metamask-button"
+                      >
+                        Install MetaMask
+                      </a>
+                    </div>
+                  {:else if metamaskAddress}
+                    <div class="wallet-status connected">
+                      <div class="wallet-details">
+                        <div class="address-container">
+                          <span class="wallet-address">{metamaskAddress.slice(0,6)}...{metamaskAddress.slice(-4)}</span>
+                          <button 
+                            class="copy-button" 
+                            on:click={() => copyAddress(metamaskAddress)}
+                            aria-label="Copy wallet address"
+                          >
+                            {@html icons.copy}
+                            <span class="tooltip">Copy address</span>
+                          </button>
+                          <a 
+                            href={`https://sepolia.etherscan.io/address/${metamaskAddress}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="explorer-link"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                              <polyline points="15 3 21 3 21 9"></polyline>
+                              <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                          </a>
+                        </div>
+                        <div class="balance">
+                          <span class="balance-label">Balance:</span>
+                          <span class="balance-amount">{metamaskBalance} ETH</span>
+                        </div>
+                        <button class="disconnect-button" on:click={handleDisconnectMetaMask}>
+                          Disconnect
                         </button>
-                        <a 
-                          href={`${CURRENT_NETWORK.explorer}/address/${wallet.address}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="explorer-link"
-                          aria-label="View wallet on block explorer"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <line x1="10" y1="14" x2="21" y2="3"></line>
-                          </svg>
-                        </a>
                       </div>
                     </div>
                   {:else}
-                    <div class="wallet-info">
-                      <span class="wallet-status">Not Connected</span>
-                      <button class="connect-wallet" on:click={handleWalletCreation}>
-                        Connect Wallet
+                    <div class="connect-metamask">
+                      <p>Connect to Sepolia testnet</p>
+                      <button 
+                        class="connect-metamask-button" 
+                        on:click={handleConnectMetaMask}
+                      >
+                        <img 
+                          src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" 
+                          alt="MetaMask" 
+                          class="metamask-icon"
+                        />
+                        Connect MetaMask
                       </button>
                     </div>
                   {/if}
                 </div>
               </div>
+
               <div class="menu-items">
                 <a href="/profile" class="menu-item">
                   {@html icons.profile}
@@ -369,34 +634,34 @@
         <div class="stat-card">
           <h3>Stories Published</h3>
           <p>{stats.notesSubmitted}</p>
-        </div>
+      </div>
         <div class="stat-card">
           <h3>Total Reads</h3>
           <p>{stats.verificationScore}</p>
-        </div>
+          </div>
         <div class="stat-card">
           <h3>Community Score</h3>
           <p>{stats.reputationScore}</p>
-        </div>
+          </div>
         <div class="stat-card">
           <h3>Pending Stories</h3>
           <p>{stats.pendingVerifications}</p>
         </div>
       </div>
-    </div>
+      </div>
   </header>
 
   <main>
     <section class="stories-section">
       <div class="section-header">
-        <h2>Your Stories</h2>
+        <h2 class="section-title">Your Stories</h2>
         <div class="view-options">
-          <button class="view-all">View All</button>
+          <button class="action-button">View All</button>
         </div>
       </div>
       {#if loadingNotes}
         <div class="loading">
-          <div class="loader"></div>
+          <div class="spinner"></div>
           <span>Loading your stories...</span>
         </div>
       {:else if recentNotes.length === 0}
@@ -404,7 +669,7 @@
           <div class="empty-content">
             <h3>Start Your Story</h3>
             <p>Document your startup's journey and inspire others in the community.</p>
-            <a href="/write" class="write-button">
+            <a href="/write" class="action-button">
               {@html icons.pen}
               Write Your First Story
             </a>
@@ -441,6 +706,113 @@
       {/if}
     </section>
   </main>
+  </div>
+
+<div class="profile-section">
+  <h3 class="section-title">Base Name Profile</h3>
+  {#if baseNameLoading}
+    <div class="loading">
+      <div class="spinner"></div>
+      Loading profile...
+    </div>
+  {:else if baseName}
+    <div class="basename-profile">
+      {#if baseName.avatar}
+        <img src={baseName.avatar} alt="Profile" class="profile-avatar" />
+      {/if}
+      
+      {#if baseName.description}
+        <p class="profile-description">{baseName.description}</p>
+      {/if}
+
+      <div class="profile-links">
+        {#if baseName.twitter}
+          <a 
+            href={`https://twitter.com/${baseName.twitter}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="social-link"
+          >
+            <svg viewBox="0 0 24 24" class="social-icon">
+              <path fill="currentColor" d="M23.643 4.937c-.835.37-1.732.62-2.675.733.962-.576 1.7-1.49 2.048-2.578-.9.534-1.897.922-2.958 1.13-.85-.904-2.06-1.47-3.4-1.47-2.572 0-4.658 2.086-4.658 4.66 0 .364.042.718.12 1.06-3.873-.195-7.304-2.05-9.602-4.868-.4.69-.63 1.49-.63 2.342 0 1.616.823 3.043 2.072 3.878-.764-.025-1.482-.234-2.11-.583v.06c0 2.257 1.605 4.14 3.737 4.568-.392.106-.803.162-1.227.162-.3 0-.593-.028-.877-.082.593 1.85 2.313 3.198 4.352 3.234-1.595 1.25-3.604 1.995-5.786 1.995-.376 0-.747-.022-1.112-.065 2.062 1.323 4.51 2.093 7.14 2.093 8.57 0 13.255-7.098 13.255-13.254 0"></path>
+            </svg>
+            {baseName.twitter}
+          </a>
+        {/if}
+
+        {#if baseName.github}
+          <a 
+            href={`https://github.com/${baseName.github}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="social-link"
+          >
+            <svg viewBox="0 0 24 24" class="social-icon">
+              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 1.23 1.91 1.995 5.786 1.995 5.786 0 13.255-7.098 13.255-13.254 0"></path>
+            </svg>
+            {baseName.github}
+          </a>
+        {/if}
+
+        {#if baseName.url}
+          <a 
+            href={baseName.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="social-link"
+          >
+            <svg viewBox="0 0 24 24" class="social-icon">
+              <path fill="currentColor" d="M21.41 8.64v-.05a10 10 0 0 0-18.78 0v.05a9.86 9.86 0 0 0 0 6.72v.05a10 10 0 0 0 18.78 0v-.05a9.86 9.86 0 0 0 0-6.72Z"></path>
+            </svg>
+            {baseName.url.replace(/^https?:\/\//, '')}
+          </a>
+        {/if}
+      </div>
+    </div>
+  {:else}
+    <div class="no-basename">
+      <p>No Base name profile found</p>
+      <a 
+        href="https://www.base.org/name"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="action-button"
+      >
+        Create Base Name
+      </a>
+    </div>
+  {/if}
+</div>
+
+<div class="profile-section">
+  <h3 class="section-title">Test Base Name Lookup</h3>
+  <div class="test-buttons">
+    <button 
+      class="action-button"
+      on:click={() => testBaseName(TEST_ADDRESSES.vitalik)}
+    >
+      Test vitalik.eth
+    </button>
+    <button 
+      class="action-button"
+      on:click={() => testBaseName(TEST_ADDRESSES.cb)}
+    >
+      Test coinbase.eth
+    </button>
+    <div class="test-input">
+      <input 
+        type="text" 
+        placeholder="Enter wallet address"
+        bind:value={testAddress}
+      />
+      <button 
+        class="action-button"
+        on:click={() => testBaseName(testAddress)}
+      >
+        Test Address
+      </button>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -571,10 +943,10 @@
   }
 
   .story-card {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 24px;
-    border-radius: 16px;
+    border-radius: 12px;
     transition: all 0.3s ease;
   }
 
@@ -583,25 +955,32 @@
     transform: translateY(-2px);
   }
 
+  .story-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+
   .story-header h3 {
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 600;
     color: white;
-    margin: 0 0 16px;
+    margin: 0;
   }
 
   .preview {
-    color: #A5A5A5;
-    font-size: 16px;
-    line-height: 1.5;
-    margin: 0 0 24px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0 0 16px;
   }
 
   .meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    color: #A5A5A5;
+    color: rgba(255, 255, 255, 0.5);
     font-size: 14px;
   }
 
@@ -612,70 +991,41 @@
 
   .tags {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
-    margin-top: 24px;
+    margin-top: 16px;
   }
 
   .tag {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #A5A5A5;
+    color: rgba(255, 255, 255, 0.7);
     padding: 4px 12px;
     border-radius: 16px;
     font-size: 12px;
     text-transform: capitalize;
   }
 
-  .loading {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 200px;
-  }
-
-  .loader {
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-top: 4px solid #FFFFFF;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
   .empty {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 200px;
-  }
-
-  .empty-content {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 48px;
     text-align: center;
   }
 
-  .write-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: white;
-    color: #161616;
-    padding: 16px 32px;
-    border-radius: 32px;
-    font-size: 16px;
+  .empty-content h3 {
+    color: white;
+    font-size: 24px;
     font-weight: 600;
-    text-decoration: none;
-    transition: all 0.2s;
-    cursor: pointer;
+    margin: 0 0 8px;
   }
 
-  .write-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  .empty-content p {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0 0 24px;
   }
 
   .logout-button {
@@ -800,7 +1150,7 @@
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: 280px;
+    width: 320px;
     background: rgba(32, 32, 32, 0.95);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
@@ -997,13 +1347,6 @@
     border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
   }
 
-  .wallet-address {
-    font-family: 'SF Mono', monospace;
-    font-size: 12px;
-    color: #A5A5A5;
-    cursor: default;
-  }
-
   .wallet-details {
     display: flex;
     flex-direction: column;
@@ -1049,5 +1392,303 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #A5A5A5;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #A5A5A5;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .error {
+    color: #EF4444;
+  }
+
+  .no-wallet {
+    text-align: center;
+    padding: 12px;
+  }
+
+  .no-wallet p {
+    color: #A5A5A5;
+    margin: 0 0 12px;
+    font-size: 14px;
+  }
+
+  .create-wallet-button {
+    background: #10B981;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .create-wallet-button:hover {
+    background: #059669;
+    transform: translateY(-1px);
+  }
+
+  .retry-button {
+    background: none;
+    border: none;
+    color: #10B981;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 8px;
+    font-size: inherit;
+  }
+
+  .retry-button:hover {
+    color: #059669;
+  }
+
+  .wallet-card {
+    margin-top: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .wallet-card h3 {
+    font-size: 14px;
+    color: #A5A5A5;
+    margin: 0 0 8px;
+  }
+
+  .wallet-card.metamask {
+    border-color: #F6851B;
+  }
+
+  .connect-metamask {
+    text-align: center;
+    padding: 20px;
+  }
+
+  .connect-metamask p {
+    color: #A5A5A5;
+    margin: 0 0 16px;
+    font-size: 14px;
+  }
+
+  .connect-metamask-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #F6851B;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 0 auto;
+  }
+
+  .metamask-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .connect-metamask-button:hover {
+    background: #E2761B;
+    transform: translateY(-1px);
+  }
+
+  .disconnect-button {
+    background: transparent;
+    border: 1px solid #F6851B;
+    color: #F6851B;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-top: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .disconnect-button:hover {
+    background: rgba(246, 133, 27, 0.1);
+  }
+
+  .no-metamask {
+    text-align: center;
+    padding: 20px;
+  }
+
+  .install-metamask-button {
+    display: inline-block;
+    background: #F6851B;
+    color: white;
+    text-decoration: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .install-metamask-button:hover {
+    background: #E2761B;
+    transform: translateY(-1px);
+  }
+
+  .profile-section {
+    margin: 24px 0;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+  }
+
+  .section-title {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 500;
+    color: white;
+  }
+
+  .basename-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .profile-description {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .profile-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .social-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: white;
+    text-decoration: none;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .social-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .social-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .action-button {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .action-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .test-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .test-input {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .test-input input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  .test-input input:focus {
+    outline: none;
+    border-color: white;
+  }
+
+  .no-basename {
+    text-align: center;
+    padding: 20px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style> 

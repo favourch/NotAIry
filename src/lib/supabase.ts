@@ -5,25 +5,18 @@ import { browser } from '$app/environment'
 if (!PUBLIC_SUPABASE_URL) throw new Error('Missing PUBLIC_SUPABASE_URL')
 if (!PUBLIC_SUPABASE_ANON_KEY) throw new Error('Missing PUBLIC_SUPABASE_ANON_KEY')
 
-// Create a single instance
-let supabaseInstance: ReturnType<typeof createClient> | null = null;
-
-export function getSupabase() {
-  if (browser && !supabaseInstance) {
-    supabaseInstance = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storageKey: 'supabase.auth.token'
-      }
-    });
+// Create a single supabase instance
+const supabaseInstance = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: `sb-${PUBLIC_SUPABASE_URL}-auth-token`
   }
-  return supabaseInstance;
-}
+});
 
 // Export the singleton instance
-export const supabase = getSupabase();
+export const supabase = browser ? supabaseInstance : null;
 
 export interface User {
   id: string
@@ -32,6 +25,8 @@ export interface User {
 }
 
 export async function signInWithEmail(email: string) {
+  if (!supabase) throw new Error('Supabase client not available');
+  
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -42,16 +37,22 @@ export async function signInWithEmail(email: string) {
 }
 
 export async function getSession() {
+  if (!supabase) throw new Error('Supabase client not available');
+  
   const { data: { session }, error } = await supabase.auth.getSession()
   return { session, error }
 }
 
 export async function signOut() {
+  if (!supabase) throw new Error('Supabase client not available');
+  
   const { error } = await supabase.auth.signOut()
   return { error }
 }
 
 export async function getCurrentUser(): Promise<User | null> {
+  if (!supabase) throw new Error('Supabase client not available');
+  
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) return null
 

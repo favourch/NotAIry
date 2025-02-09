@@ -4,8 +4,8 @@ import type { RequestEvent } from '@sveltejs/kit';
 
 export async function POST({ request, locals }: RequestEvent) {
   try {
-    const session = await locals.getSession();
-    if (!session?.access_token) {
+    const session = locals.session;
+    if (!session?.user?.id) {
       return json(
         { error: 'Unauthorized' }, 
         { 
@@ -17,33 +17,54 @@ export async function POST({ request, locals }: RequestEvent) {
       );
     }
 
-    const response = await createPrivyWallet(request);
-    const data = await response.json();
+    // Create the wallet
+    try {
+      const response = await createPrivyWallet(request);
+      const data = await response.json();
 
-    if (!response.ok) {
-      console.error('Privy API error:', data);
-      return json({ error: data.message || 'Failed to create wallet' }, { status: response.status });
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create wallet');
+      }
+
+      // Update user profile with wallet address
+      const { error: updateError } = await locals.supabase
+        .from('profiles')
+        .update({ 
+          wallet_address: data.address,
+          wallet_status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id);
+
+      if (updateError) {
+        console.error('Failed to update profile:', updateError);
+        return json({ error: 'Failed to update profile' }, { status: 500 });
+      }
+
+      return json({
+        address: data.address,
+        network: 'Arbitrum Sepolia'
+      });
+    } catch (error: any) {
+      console.error('Wallet creation failed:', error);
+      
+      // Update profile status on failure
+      await locals.supabase
+        .from('profiles')
+        .update({ 
+          wallet_status: 'failed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id);
+
+      return json({ 
+        error: error.message || 'Failed to create wallet' 
+      }, { 
+        status: 500 
+      });
     }
-
-    // Update user profile with wallet address
-    const { error: updateError } = await locals.supabase
-      .from('profiles')
-      .update({ 
-        wallet_address: data.address,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', session.user.id);
-
-    if (updateError) {
-      console.error('Failed to update profile:', updateError);
-    }
-
-    return json({
-      address: data.address,
-      network: 'Arbitrum Sepolia'
-    });
   } catch (error) {
-    console.error('Failed to create wallet:', error);
-    return json({ error: 'Failed to create wallet' }, { status: 500 });
+    console.error('API error:', error);
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 } 
