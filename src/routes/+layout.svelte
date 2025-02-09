@@ -17,6 +17,7 @@
 
 <nav>
   <a href="/">Home</a>
+  <a href="/stories">Stories</a>
   <a href="/write">Write</a>
   <a href="/dashboard">Dashboard</a>
   <a href="/reviews">Reviews</a>
