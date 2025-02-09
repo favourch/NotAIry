@@ -118,6 +118,12 @@
     cb: '0xa4b8c69f0d741b1baa779ab157ec671c99604e6f', // coinbase.eth
   };
 
+  // Add pagination variables
+  let currentPage = 1;
+  let pageSize = 6;
+  let totalStories = 0;
+  let totalPages = 0;
+
   onMount(() => {
     // Check for MetaMask availability
     hasMetaMask = browser && typeof window !== 'undefined' && window.ethereum !== undefined;
@@ -234,14 +240,35 @@
     }
   });
 
+  // Update fetchRecentNotes to handle pagination
   async function fetchRecentNotes() {
     loadingNotes = true;
     try {
+      // First get total count
+      let countQuery = supabase
+        .from('stories')
+        .select('id', { count: 'exact' });
+
+      // If MetaMask is connected, include its stories too
+      if (metamaskAddress) {
+        countQuery = countQuery.or(`wallet_address.eq.${metamaskAddress},author_id.eq.${user.id}`);
+      } else {
+        countQuery = countQuery.eq('author_id', user.id);
+      }
+
+      const { count, error: countError } = await countQuery;
+      
+      if (countError) throw countError;
+      
+      totalStories = count || 0;
+      totalPages = Math.ceil(totalStories / pageSize);
+
+      // Then get paginated data
       let query = supabase
         .from('stories')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
 
       // If MetaMask is connected, include its stories too
       if (metamaskAddress) {
@@ -271,6 +298,17 @@
       return [];
     } finally {
       loadingNotes = false;
+    }
+  }
+
+  // Add pagination controls
+  function goToPage(page: number) {
+    if (page >= 1 && page <= totalPages) {
+      currentPage = page;
+      loadingNotes = true;
+      fetchRecentNotes().then(notes => {
+        recentNotes = notes;
+      });
     }
   }
 
@@ -784,7 +822,79 @@
       {/if}
     </section>
   </main>
-  </div>
+
+  {#if totalPages > 1}
+    <div class="pagination">
+      <button 
+        class="pagination-button" 
+        disabled={currentPage === 1}
+        on:click={() => goToPage(currentPage - 1)}
+      >
+        Previous
+      </button>
+      
+      <div class="page-numbers">
+        {#if currentPage > 2}
+          <button 
+            class="page-number"
+            on:click={() => goToPage(1)}
+          >
+            1
+          </button>
+          {#if currentPage > 3}
+            <span class="ellipsis">...</span>
+          {/if}
+        {/if}
+
+        {#if currentPage > 1}
+          <button 
+            class="page-number"
+            on:click={() => goToPage(currentPage - 1)}
+          >
+            {currentPage - 1}
+          </button>
+        {/if}
+
+        <button class="page-number active">
+          {currentPage}
+        </button>
+
+        {#if currentPage < totalPages}
+          <button 
+            class="page-number"
+            on:click={() => goToPage(currentPage + 1)}
+          >
+            {currentPage + 1}
+          </button>
+        {/if}
+
+        {#if currentPage < totalPages - 1}
+          {#if currentPage < totalPages - 2}
+            <span class="ellipsis">...</span>
+          {/if}
+          <button 
+            class="page-number"
+            on:click={() => goToPage(totalPages)}
+          >
+            {totalPages}
+          </button>
+        {/if}
+      </div>
+
+      <button 
+        class="pagination-button" 
+        disabled={currentPage === totalPages}
+        on:click={() => goToPage(currentPage + 1)}
+      >
+        Next
+      </button>
+    </div>
+
+    <div class="pagination-info">
+      Showing {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalStories)} of {totalStories} stories
+    </div>
+  {/if}
+</div>
 
 <div class="profile-section">
   <h3 class="section-title">Base Name Profile</h3>
@@ -826,7 +936,7 @@
             class="social-link"
           >
             <svg viewBox="0 0 24 24" class="social-icon">
-              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 1.23 1.91 1.995 5.786 1.995 5.786 0 13.255-7.098 13.255-13.254 0"></path>
+              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.236 1.07 1.835 2.809 1.305 1.23 1.91 1.995 5.786 1.995 5.786 0 13.255-7.098 13.255-13.254 0"></path>
             </svg>
             {baseName.github}
           </a>
@@ -1847,6 +1957,95 @@
     .write-button {
       width: 100%;
       justify-content: center;
+    }
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 40px;
+  }
+
+  .pagination-button {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pagination-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .pagination-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-number {
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .page-number:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .page-number.active {
+    background: rgba(139, 92, 246, 0.1);
+    border-color: #8B5CF6;
+    color: #8B5CF6;
+    cursor: default;
+  }
+
+  .ellipsis {
+    color: #A5A5A5;
+    padding: 0 4px;
+  }
+
+  .pagination-info {
+    text-align: center;
+    color: #A5A5A5;
+    font-size: 14px;
+    margin-top: 16px;
+  }
+
+  @media (max-width: 768px) {
+    .pagination {
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .page-numbers {
+      order: -1;
+    }
+
+    .pagination-button {
+      width: 100%;
     }
   }
 </style> 
