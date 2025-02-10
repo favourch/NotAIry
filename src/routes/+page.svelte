@@ -28,7 +28,7 @@
 </script>
 
 <svelte:head>
-  <title>StoryDAO - Onchain Storytelling for Startups</title>
+  <title>NotAIry - Onchain Storytelling for Startups</title>
 </svelte:head>
 
 <div class="wrapper">
