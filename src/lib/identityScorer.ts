@@ -51,8 +51,19 @@ export class IdentityScorer {
         console.error('Cache lookup error:', cacheError);
       }
 
-      if (cached && Date.now() - new Date(cached.updated_at).getTime() < 24 * 60 * 60 * 1000) {
-        return JSON.parse(cached.score_data);
+      // Check if we have valid cached data that's less than 24 hours old
+      if (cached && cached.score_data && Date.now() - new Date(cached.updated_at).getTime() < 24 * 60 * 60 * 1000) {
+        try {
+          // Make sure score_data is a string before parsing
+          const scoreData = typeof cached.score_data === 'string' 
+            ? JSON.parse(cached.score_data)
+            : cached.score_data;
+          
+          return scoreData;
+        } catch (parseError) {
+          console.error('Failed to parse cached score data:', parseError);
+          // Continue to fetch new data if parse fails
+        }
       }
 
       // If no API key, return default scores
@@ -101,13 +112,13 @@ export class IdentityScorer {
         }
       };
 
-      // Cache the result with proper error handling
+      // Update caching logic
       try {
         const { error: upsertError } = await supabase
           .from('wallet_scores')
           .upsert({
             wallet_address: normalizedAddress,
-            score_data: score, // Supabase will automatically stringify JSONB
+            score_data: JSON.stringify(score), // Explicitly stringify the score object
             updated_at: new Date().toISOString()
           });
 
