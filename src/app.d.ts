@@ -12,6 +12,8 @@ declare global {
 				id: string;
 				email: string;
 			};
+			user: import('@supabase/supabase-js').User;
+			token: string;
 		}
 		interface PageData {
 			session: import('@supabase/supabase-js').Session | null

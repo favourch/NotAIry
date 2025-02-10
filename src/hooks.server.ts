@@ -2,6 +2,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { createSupabaseServerClient } from '@supabase/auth-helpers-sveltekit';
 import type { Handle } from '@sveltejs/kit';
 import { createPrivyWallet } from '$lib/server/privy';
+import { supabase } from '$lib/supabase';
 
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.supabase = createSupabaseServerClient({
@@ -77,6 +78,17 @@ export const handle: Handle = async ({ event, resolve }) => {
           })
           .eq('id', session.user.id);
       }
+    }
+  }
+
+  // Get the session from the request
+  const authHeader = event.request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (!error && user) {
+      event.locals.user = user;
+      event.locals.token = token;
     }
   }
 

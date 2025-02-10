@@ -16,6 +16,7 @@
   import { browser } from '$app/environment';
   import type { BaseNameProfile } from '$lib/basename';
   import { getBaseNameProfile } from '$lib/basename';
+  import IdentityScore from '$lib/components/IdentityScore.svelte';
 
   let toast: { message: string; type: 'success' | 'error' | 'info' } | null = null;
   
@@ -26,8 +27,12 @@
     }, 3000);
   }
 
-  function formatRelativeTime(dateString: string): string {
+  function formatRelativeTime(dateString: string | null): string {
+    if (!dateString) return 'N/A';
+    
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
@@ -46,6 +51,7 @@
   }
 
   const icons = {
+    home: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
     pen: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
     heart: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`,
     comment: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
@@ -54,6 +60,13 @@
     menu: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>`,
     copy: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
     link: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`,
+  };
+
+  const statIcons = {
+    stories: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+    reads: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    score: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
+    pending: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`
   };
 
   interface Note {
@@ -76,7 +89,7 @@
   let recentNotes: Note[] = [];
   let stats = {
     notesSubmitted: 0,
-    verificationScore: '0%',
+    verificationScore: 0,
     pendingVerifications: 0,
     reputationScore: 0
   };
@@ -286,7 +299,7 @@
         title: story.title,
         content: story.content,
         status: story.status,
-        timestamp: formatRelativeTime(story.created_at),
+        timestamp: story.created_at,
         type: story.story_type,
         wallet_address: story.wallet_address,
         likes: story.likes || 0,
@@ -314,49 +327,67 @@
 
   async function fetchUserStats() {
     try {
-      // First ensure the profile exists
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .upsert({ 
-          id: user.id, 
-          email: user.email,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        })
-        .select()
-        .single();
+      // Get all stories by the user
+      const { data: stories, error: storiesError } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('author_id', user.id);
 
-      if (profileError) throw profileError;
+      if (storiesError) throw storiesError;
 
-      // Then get the stats
-      const { data: stats, error: statsError } = await supabase
+      // Calculate stats from stories
+      const stats = {
+        notesSubmitted: stories.filter(s => s.status === 'published').length,
+        verificationScore: Math.round(stories.reduce((acc, s) => acc + (s.ai_review_score || 0), 0) / 
+                          (stories.filter(s => s.ai_review_score !== null).length || 1)),
+        pendingVerifications: stories.filter(s => s.status === 'in_review').length,
+        reputationScore: stories.reduce((acc, s) => acc + (s.likes || 0) + (s.comments || 0), 0)
+      };
+
+      // If no stats exist in user_stats table, create them
+      const { data: existingStats, error: statsError } = await supabase
         .from('user_stats')
-        .select('stories_published, total_likes, total_comments, drafts_count')
-        .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle instead of single
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (statsError) {
-        console.error('Stats error:', statsError);
-      return {
-          notesSubmitted: 0,
-          verificationScore: '0',
-          pendingVerifications: 0,
-          reputationScore: 0
-        };
+      if (statsError) throw statsError;
+
+      if (!existingStats) {
+        const { error: insertError } = await supabase
+          .from('user_stats')
+          .insert({
+            user_id: user.id,
+            stories_published: stats.notesSubmitted,
+            verification_score: stats.verificationScore,
+            pending_verifications: stats.pendingVerifications,
+            reputation_score: stats.reputationScore
+          });
+
+        if (insertError) throw insertError;
+      } else {
+        // Update existing stats
+        const { error: updateError } = await supabase
+          .from('user_stats')
+          .update({
+            stories_published: stats.notesSubmitted,
+            verification_score: stats.verificationScore,
+            pending_verifications: stats.pendingVerifications,
+            reputation_score: stats.reputationScore,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+
+        if (updateError) throw updateError;
       }
 
-      return {
-        notesSubmitted: stats?.stories_published || 0,
-        verificationScore: `${stats?.total_likes || 0}`,
-        pendingVerifications: stats?.drafts_count || 0,
-        reputationScore: stats?.total_comments || 0
-      };
+      return stats;
+
     } catch (err) {
       console.error('Failed to fetch user stats:', err);
       return {
         notesSubmitted: 0,
-        verificationScore: '0',
+        verificationScore: 0,
         pendingVerifications: 0,
         reputationScore: 0
       };
@@ -415,11 +446,23 @@
   }
 
   async function handleCreateWallet() {
+    let currentSession = null;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('Not authenticated');
+      // Get current session and verify it's valid
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Session check:', { session, error: sessionError });
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error('Session error: ' + sessionError.message);
       }
+      
+      if (!session?.access_token) {
+        console.error('No active session found');
+        throw new Error('No active session');
+      }
+
+      currentSession = session;
 
       // Update status to creating
       const { error: updateError } = await supabase
@@ -428,46 +471,58 @@
           wallet_status: 'creating',
           updated_at: new Date().toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', session.user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Profile update error:', updateError);
+        throw updateError;
+      }
+
       walletStatus = 'creating';
 
-      // Make sure we're using the latest session token
-      const response = await fetch('/api/wallet', {
+      // Create smart wallet
+      console.log('Sending wallet creation request...');
+      const response = await fetch('/api/wallet/smart', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         }
       });
 
-      const data = await response.json();
+      console.log('Wallet creation response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create wallet');
+        const errorData = await response.json();
+        console.error('Wallet creation failed:', errorData);
+        throw new Error(errorData.error || 'Failed to create smart wallet');
       }
+
+      const data = await response.json();
+      console.log('Wallet creation successful:', data);
 
       wallet = {
         address: data.address,
-        network: data.network
+        network: data.network,
+        isSmartWallet: true
       };
 
       await fetchWalletBalance();
-      showToast('Wallet created successfully', 'success');
+      showToast('Smart wallet created successfully', 'success');
     } catch (err) {
       console.error('Failed to create wallet:', err);
       walletStatus = 'failed';
-      showToast('Failed to create wallet', 'error');
+      showToast('Failed to create smart wallet: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
 
-      // Update profile status on failure
-      if (user?.id) {
+      if (currentSession?.user?.id) {
         await supabase
           .from('profiles')
           .update({ 
             wallet_status: 'failed',
             updated_at: new Date().toISOString()
           })
-          .eq('id', user.id);
+          .eq('id', currentSession.user.id);
       }
     }
   }
@@ -555,10 +610,16 @@
                 
                 <!-- Privy Wallet Card -->
                 <div class="wallet-card privy">
-                  <h3>Privy Wallet</h3>
+                  <h3>Privy Smart Wallet</h3>
                   {#if wallet}
                     <div class="wallet-status connected">
                       <div class="wallet-details">
+                        <div class="smart-wallet-badge">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                          </svg>
+                          Smart Wallet
+                        </div>
                         <div class="address-container">
                           <span class="wallet-address">{wallet.address.slice(0,6)}...{wallet.address.slice(-4)}</span>
                           <button 
@@ -593,20 +654,20 @@
                       {#if walletStatus === 'creating'}
                         <div class="loading">
                           <div class="spinner"></div>
-                          Creating your Arbitrum Sepolia wallet...
+                          Creating your smart wallet...
                         </div>
                       {:else if walletStatus === 'failed'}
                         <div class="error">
-                          Failed to create wallet. 
+                          Failed to create smart wallet. 
                           <button class="retry-button" on:click={handleCreateWallet}>
                             Try Again
                           </button>
                         </div>
                       {:else}
                         <div class="no-wallet">
-                          <p>No wallet connected</p>
+                          <p>No smart wallet connected</p>
                           <button class="create-wallet-button" on:click={handleCreateWallet}>
-                            Create Wallet
+                            Create Smart Wallet
                           </button>
                         </div>
                       {/if}
@@ -662,6 +723,9 @@
                         <button class="disconnect-button" on:click={handleDisconnectMetaMask}>
                           Disconnect
                         </button>
+                        {#if metamaskAddress}
+                          <IdentityScore walletAddress={metamaskAddress} />
+                        {/if}
                       </div>
                     </div>
                   {:else}
@@ -672,7 +736,7 @@
                         on:click={handleConnectMetaMask}
                       >
                         <img 
-                          src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" 
+                          src="https://metamask.io/assets/icon.svg" 
                           alt="MetaMask" 
                           class="metamask-icon"
                         />
@@ -714,20 +778,32 @@
       </div>
       <div class="stats">
         <div class="stat-card">
-          <h3>Stories Published</h3>
-          <p>{stats.notesSubmitted}</p>
+          <div class="stat-icon">{@html statIcons.stories}</div>
+          <div class="stat-content">
+            <h3>Stories Published</h3>
+            <p>{stats.notesSubmitted}</p>
+          </div>
         </div>
         <div class="stat-card">
-          <h3>Total Reads</h3>
-          <p>{stats.verificationScore}</p>
+          <div class="stat-icon">{@html statIcons.reads}</div>
+          <div class="stat-content">
+            <h3>Verification Score</h3>
+            <p>{stats.verificationScore}%</p>
+          </div>
         </div>
         <div class="stat-card">
-          <h3>Community Score</h3>
-          <p>{stats.reputationScore}</p>
+          <div class="stat-icon">{@html statIcons.score}</div>
+          <div class="stat-content">
+            <h3>Reputation Score</h3>
+            <p>{stats.reputationScore}</p>
+          </div>
         </div>
         <div class="stat-card">
-          <h3>Pending Stories</h3>
-          <p>{stats.pendingVerifications}</p>
+          <div class="stat-icon">{@html statIcons.pending}</div>
+          <div class="stat-content">
+            <h3>Pending Reviews</h3>
+            <p>{stats.pendingVerifications}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -748,9 +824,20 @@
         </div>
       </div>
       {#if loadingNotes}
-        <div class="loading">
-          <div class="spinner"></div>
-          <span>Loading your stories...</span>
+        <div class="loading-stories">
+          <div class="loading-grid">
+            {#each Array(3) as _}
+              <div class="story-card skeleton">
+                <div class="skeleton-header"></div>
+                <div class="skeleton-content">
+                  <div class="skeleton-line"></div>
+                  <div class="skeleton-line"></div>
+                  <div class="skeleton-line short"></div>
+                </div>
+                <div class="skeleton-meta"></div>
+              </div>
+            {/each}
+          </div>
         </div>
       {:else if recentNotes.length === 0}
         <div class="empty">
@@ -782,10 +869,10 @@
                       <div class="story-type">{note.type.replace(/-/g, ' ')}</div>
                       <div class="status-indicator" class:published={note.status === 'published'} class:review={note.status === 'in_review'} class:draft={note.status === 'draft'}>
                         <span class="status-dot"></span>
-                        {note.status}
+                        {note.status === 'in_review' ? 'in review' : note.status}
                       </div>
                     </div>
-                    <time>{formatRelativeTime(note.timestamp)}</time>
+                    <time datetime={note.timestamp}>{formatRelativeTime(note.timestamp)}</time>
                   </div>
                 </div>
               </div>
@@ -904,112 +991,7 @@
   {/if}
 </div>
 
-<div class="profile-section">
-  <h3 class="section-title">Base Name Profile</h3>
-  {#if baseNameLoading}
-    <div class="loading">
-      <div class="spinner"></div>
-      Loading profile...
-    </div>
-  {:else if baseName}
-    <div class="basename-profile">
-      {#if baseName.avatar}
-        <img src={baseName.avatar} alt="Profile" class="profile-avatar" />
-      {/if}
-      
-      {#if baseName.description}
-        <p class="profile-description">{baseName.description}</p>
-      {/if}
 
-      <div class="profile-links">
-        {#if baseName.twitter}
-          <a 
-            href={`https://twitter.com/${baseName.twitter}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="social-link"
-          >
-            <svg viewBox="0 0 24 24" class="social-icon">
-              <path fill="currentColor" d="M23.643 4.937c-.835.37-1.732.62-2.675.733.962-.576 1.7-1.49 2.048-2.578-.9.534-1.897.922-2.958 1.13-.85-.904-2.06-1.47-3.4-1.47-2.572 0-4.658 2.086-4.658 4.66 0 .364.042.718.12 1.06-3.873-.195-7.304-2.05-9.602-4.868-.4.69-.63 1.49-.63 2.342 0 1.616.823 3.043 2.072 3.878-.764-.025-1.482-.234-2.11-.583v.06c0 2.257 1.605 4.14 3.737 4.568-.392.106-.803.162-1.227.162-.3 0-.593-.028-.877-.082.593 1.85 2.313 2.313 3.198 4.352 3.234-1.595 1.25-3.604 1.995-5.786 1.995-.376 0-.747-.022-1.112-.065 2.062 1.323 4.51 2.093 7.14 2.093 8.57 0 13.255-7.098 13.255-13.254 0"></path>
-            </svg>
-            {baseName.twitter}
-          </a>
-        {/if}
-
-        {#if baseName.github}
-          <a 
-            href={`https://github.com/${baseName.github}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="social-link"
-          >
-            <svg viewBox="0 0 24 24" class="social-icon">
-              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.236 1.07 1.835 2.809 2.809 1.305 1.23 1.91 1.995 5.786 1.995 5.786 0 13.255-7.098 13.255-13.254 0"></path>
-            </svg>
-            {baseName.github}
-          </a>
-        {/if}
-
-        {#if baseName.url}
-          <a 
-            href={baseName.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="social-link"
-          >
-            <svg viewBox="0 0 24 24" class="social-icon">
-              <path fill="currentColor" d="M21.41 8.64v-.05a10 10 0 0 0-18.78 0v.05a9.86 9.86 0 0 0 0 6.72v.05a10 10 0 0 0 18.78 0v-.05a9.86 9.86 0 0 0 0-6.72Z"></path>
-            </svg>
-            {baseName.url.replace(/^https?:\/\//, '')}
-          </a>
-        {/if}
-      </div>
-    </div>
-  {:else}
-    <div class="no-basename">
-      <p>No Base name profile found</p>
-      <a 
-        href="https://www.base.org/name"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="action-button"
-      >
-        Create Base Name
-      </a>
-    </div>
-  {/if}
-</div>
-
-<div class="profile-section">
-  <h3 class="section-title">Test Base Name Lookup</h3>
-  <div class="test-buttons">
-    <button 
-      class="action-button"
-      on:click={() => testBaseName(TEST_ADDRESSES.vitalik)}
-    >
-      Test vitalik.eth
-    </button>
-    <button 
-      class="action-button"
-      on:click={() => testBaseName(TEST_ADDRESSES.cb)}
-    >
-      Test coinbase.eth
-    </button>
-    <div class="test-input">
-      <input 
-        type="text" 
-        placeholder="Enter wallet address"
-        bind:value={testAddress}
-      />
-      <button 
-        class="action-button"
-        on:click={() => testBaseName(testAddress)}
-      >
-        Test Address
-      </button>
-    </div>
-  </div>
-</div>
 
 <style>
   /* Global styles match */
@@ -1088,6 +1070,9 @@
     padding: 24px;
     border-radius: 16px;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
   }
 
   .stat-card:hover {
@@ -1095,17 +1080,28 @@
     transform: translateY(-2px);
   }
 
+  .stat-icon {
+    color: #8B5CF6;
+    background: rgba(139, 92, 246, 0.1);
+    padding: 12px;
+    border-radius: 12px;
+    line-height: 0;
+  }
+
+  .stat-content {
+    flex: 1;
+  }
+
   .stat-card h3 {
-    color: #A5A5A5;
     font-size: 14px;
-    font-weight: 500;
-    margin: 0 0 8px;
+    color: #A5A5A5;
+    margin: 0 0 4px;
     letter-spacing: 0.02em;
   }
 
   .stat-card p {
-    font-size: 36px;
-    font-weight: 700;
+    font-size: 28px;
+    font-weight: 600;
     margin: 0;
     background: linear-gradient(90deg, #FFFFFF 0%, #A5A5A5 100%);
     -webkit-background-clip: text;
@@ -1146,12 +1142,31 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 24px;
     border-radius: 12px;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
   }
 
   .story-card:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .story-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #8B5CF6 0%, #6D28D9 100%);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .story-card:hover::before {
+    opacity: 1;
   }
 
   .story-header {
@@ -2104,5 +2119,74 @@
 
   .status-indicator.draft .status-dot {
     background: #92400E;
+  }
+
+  .loading-stories {
+    min-height: 400px;
+  }
+
+  .loading-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 24px;
+  }
+
+  .skeleton {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 24px;
+    border-radius: 12px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-header {
+    height: 24px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+
+  .skeleton-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .skeleton-line {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+  }
+
+  .skeleton-line.short {
+    width: 60%;
+  }
+
+  .skeleton-meta {
+    height: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+
+  /* Add styles for smart wallet badge */
+  .smart-wallet-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(165, 180, 252, 0.1);
+    border: 1px solid #a5b4fc;
+    color: #a5b4fc;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    width: fit-content;
+    margin-bottom: 8px;
   }
 </style> 

@@ -17,6 +17,17 @@ declare global {
 
 let privyLoadPromise: Promise<boolean> | null = null;
 
+// Add smart wallet configuration
+const SMART_WALLET_CONFIG = {
+  implementation: 'KERNEL', // Using Kernel (ZeroDev) implementation
+  network: {
+    chainId: '0x66eee', // Arbitrum Sepolia
+    name: 'Arbitrum Sepolia',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc'
+  }
+};
+
+// Initialize Privy with smart wallet support
 async function loadPrivyWidget(): Promise<boolean> {
   if (privyLoadPromise) return privyLoadPromise;
 
@@ -25,7 +36,7 @@ async function loadPrivyWidget(): Promise<boolean> {
     script.src = 'https://embedded.privy.io/widget.js';
     script.async = true;
     script.onload = () => {
-      // Initialize the widget once loaded
+      // Initialize with smart wallet config
       window.PrivyLogin?.init({
         clientId: PUBLIC_PRIVY_APP_ID,
         theme: {
@@ -34,6 +45,11 @@ async function loadPrivyWidget(): Promise<boolean> {
             background: '#161616',
             text: '#ffffff'
           }
+        },
+        smartWallet: {
+          enabled: true,
+          implementation: SMART_WALLET_CONFIG.implementation,
+          network: SMART_WALLET_CONFIG.network
         }
       });
       resolve(true);
@@ -151,7 +167,12 @@ export async function getWalletBalance(wallet: any): Promise<string> {
       throw new Error('No wallet ID provided');
     }
 
-    const response = await fetch(`/api/wallet/${walletId}/balance`, {
+    // Use smart wallet specific endpoint
+    const endpoint = wallet.isSmartWallet ? 
+      `/api/wallet/smart/${walletId}/balance` : 
+      `/api/wallet/${walletId}/balance`;
+
+    const response = await fetch(endpoint, {
       headers: {
         'Authorization': `Bearer ${session.access_token}`
       }
@@ -222,6 +243,7 @@ export async function verifyNote(walletId: string, noteId: string, verdict: bool
   }
 }
 
+// Update wallet creation to use smart wallets
 export async function createWallet() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -229,7 +251,8 @@ export async function createWallet() {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch('/api/wallet', {
+    // Create smart wallet through Privy API
+    const response = await fetch('/api/wallet/smart', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -239,16 +262,17 @@ export async function createWallet() {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to create wallet');
+      throw new Error(data.error || 'Failed to create smart wallet');
     }
 
     return {
       id: data.address,
       address: data.address,
-      network: data.network
+      network: 'Arbitrum Sepolia',
+      isSmartWallet: true
     };
   } catch (error) {
-    console.error('Error creating wallet:', error);
+    console.error('Error creating smart wallet:', error);
     throw error;
   }
 }
@@ -311,5 +335,25 @@ export async function switchToArbitrum(wallet: any) {
   } catch (error) {
     console.error('Failed to switch network:', error);
     return false;
+  }
+}
+
+// Add smart wallet specific functions
+export async function batchTransactions(wallet: any, transactions: any[]) {
+  try {
+    const response = await fetch(`${PRIVY_API_BASE}/wallets/${wallet.id}/batch`, {
+      method: 'POST',
+      headers: getBaseHeaders(),
+      body: JSON.stringify({ transactions })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to execute batch transactions');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to execute batch transactions:', error);
+    throw error;
   }
 } 
