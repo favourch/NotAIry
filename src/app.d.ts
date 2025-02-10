@@ -43,6 +43,8 @@ declare global {
 		interface ProcessEnv {
 			PUBLIC_PRIVY_APP_ID: string;
 			PRIVY_CLIENT_ID: string;
+			PUBLIC_SUPABASE_URL: string;
+			PUBLIC_SUPABASE_ANON_KEY: string;
 		}
 	}
 }
