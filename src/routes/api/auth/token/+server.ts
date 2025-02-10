@@ -1,24 +1,23 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { PRIVY_CLIENT_ID } from '$lib/config';
+import { privateConfigs } from '$lib/config';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
-        const { email } = await request.json();
+        const { code } = await request.json();
         
-        console.log('Attempting to generate token for email:', email);
+        console.log('Attempting to generate token for code:', code);
         
         // Generate a token using your Privy app secret
-        const response = await fetch('https://auth.privy.io/api/v1/auth/token', {
+        const response = await fetch('https://auth.privy.io/api/v1/oauth/token', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_PRIVY_APP_SECRET}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                app_id: import.meta.env.VITE_PRIVY_APP_ID,
-                client_id: PRIVY_CLIENT_ID,
-                email: email
+                grant_type: 'authorization_code',
+                client_id: privateConfigs.PRIVY_CLIENT_ID,
+                code
             })
         });
 
@@ -28,9 +27,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
         // If response is not ok, get the error text
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Token Error Response:', errorText);
-            return json({ error: 'Token generation failed', details: errorText }, { status: response.status });
+            const error = await response.json();
+            console.error('Token Error Response:', error);
+            throw new Error(error.message || 'Failed to get token');
         }
 
         // Try to parse the response as JSON
@@ -47,9 +46,13 @@ export const POST: RequestHandler = async ({ request }) => {
         return json(data);
     } catch (error) {
         console.error('Token generation failed:', error);
-        return json({ 
-            error: 'Failed to generate token', 
-            details: error instanceof Error ? error.message : String(error) 
-        }, { status: 500 });
+        return new Response(JSON.stringify({ 
+            error: error instanceof Error ? error.message : 'Failed to get token' 
+        }), { 
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
     }
 }; 

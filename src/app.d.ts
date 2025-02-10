@@ -38,6 +38,13 @@ declare global {
 			removeListener: (eventName: string, callback: Function) => void;
 		};
 	}
+
+	namespace NodeJS {
+		interface ProcessEnv {
+			PUBLIC_PRIVY_APP_ID: string;
+			PRIVY_CLIENT_ID: string;
+		}
+	}
 }
 
 export {};
